@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (AI Stable)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (AI Pro Max)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -33,7 +33,7 @@
         <div class="flex items-center justify-between mb-6 bg-white p-4 rounded-xl shadow-md">
             <div class="flex items-center space-x-3">
                 <span class="text-3xl">🤖</span>
-                <h1 class="text-xl font-bold text-gray-800">iTeX - Kiểm Tra Online & AI Flash</h1>
+                <h1 class="text-xl font-bold text-gray-800">iTeX - Kiểm Tra Online & AI Pro</h1>
             </div>
             <div id="user-info" class="text-sm text-gray-500">Đang tải...</div>
         </div>
@@ -98,7 +98,7 @@
                     
                     <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-200 mb-8">
                         <h3 class="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">
-                            🤖 Tạo Câu Hỏi Thông Minh (Gemini Flash)
+                            🤖 Tạo Câu Hỏi Thông Minh (Gemini Pro)
                         </h3>
                         
                         <div class="mb-4">
@@ -242,7 +242,7 @@
              messagingSenderId: "321777356764",
              appId: "1:321777356764:web:7ea129a40de01a4cc5c919"
         };
-        const APP_ID = 'itex-v2-ai-fixed';
+        const APP_ID = 'itex-v2-ai-stable';
 
         // INIT
         const app = initializeApp(firebaseConfig);
@@ -296,7 +296,45 @@
             reader.readAsDataURL(file);
         });
 
-        // --- AI GENERATION LOGIC (UPDATED MODEL TO FLASH) ---
+        // --- INTELLIGENT AI GENERATION (WITH AUTO-FALLBACK) ---
+        // Hàm này tự động thử các model từ mạnh nhất (1.5-pro) đến ổn định nhất (1.0-pro)
+        async function fetchGeminiWithFallback(apiKey, parts) {
+            // Danh sách model ưu tiên
+            const models = ['gemini-1.5-pro', 'gemini-1.5-flash', 'gemini-pro'];
+            let lastError = null;
+
+            for (const model of models) {
+                try {
+                    // console.log(`Trying model: ${model}`); // Debug
+                    const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${apiKey}`;
+                    
+                    const response = await fetch(url, {
+                        method: 'POST',
+                        headers: {'Content-Type': 'application/json'},
+                        body: JSON.stringify({ contents: [{ parts: parts }] })
+                    });
+
+                    const data = await response.json();
+                    
+                    // Nếu lỗi API trả về
+                    if (data.error) throw new Error(data.error.message);
+                    
+                    // Nếu thành công trả về text ngay
+                    return data.candidates[0].content.parts[0].text;
+                    
+                } catch (e) {
+                    lastError = e;
+                    // Nếu lỗi "not found" hoặc "not supported", thử model tiếp theo
+                    if (e.message.includes("not found") || e.message.includes("not supported")) {
+                        continue;
+                    } else {
+                        throw e; // Lỗi khác (vd key sai) thì throw luôn
+                    }
+                }
+            }
+            throw lastError; // Hết model mà vẫn lỗi
+        }
+
         window.generateWithAI = async (btn) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
             if(!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
@@ -313,7 +351,7 @@
             const topicText = document.getElementById('ai-topic-text').value.trim();
             
             btn.disabled = true;
-            btn.innerHTML = "⏳ Gemini đang suy nghĩ...";
+            btn.innerHTML = "⏳ AI đang suy nghĩ (thử nhiều model)...";
 
             try {
                 let parts = [];
@@ -337,7 +375,7 @@
                     - ${numSa} câu trả lời ngắn (short_answer).
                     - Ngôn ngữ: Tiếng Việt.
                     
-                    QUAN TRỌNG: Chỉ trả về định dạng JSON Array, không thêm markdown (no code block).
+                    QUAN TRỌNG: Chỉ trả về định dạng JSON Array thuần túy, KHÔNG dùng markdown (không có dấu backticks).
                     Định dạng JSON mẫu:
                     [
                         { "type": "mcq", "content": "Nội dung câu hỏi...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." },
@@ -356,20 +394,10 @@
                     parts.push({ inline_data: { mime_type: mimeType, data: base64 } });
                 }
 
-                // CHANGED: Use gemini-1.5-flash for reliability
-                const modelName = 'gemini-1.5-flash'; 
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-                
-                const response = await fetch(url, {
-                    method: 'POST',
-                    headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: parts }] })
-                });
+                // Dùng hàm Fallback thông minh
+                let rawText = await fetchGeminiWithFallback(apiKey, parts);
 
-                const data = await response.json();
-                if(data.error) throw new Error(data.error.message);
-
-                let rawText = data.candidates[0].content.parts[0].text;
+                // Clean text
                 rawText = rawText.replace(/```json/g, '').replace(/```/g, '').trim();
                 
                 const questions = JSON.parse(rawText);
@@ -383,7 +411,7 @@
 
             } catch (e) {
                 console.error(e);
-                customAlert("Lỗi AI: " + e.message);
+                customAlert("Lỗi AI: " + e.message + "\n\n(Kiểm tra lại API Key hoặc quyền truy cập)");
             } finally {
                 btn.disabled = false;
                 btn.innerHTML = "✨ Tạo Câu Hỏi Ngay";
@@ -463,16 +491,10 @@
 
             btn.innerHTML = "⏳...";
             try {
-                const modelName = 'gemini-1.5-flash';
-                const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
-                
                 const promptText = `Sửa câu hỏi sau: "${newInstruction}". Gốc: ${content}. Loại: ${type}. Output JSON format cũ.`;
-                const response = await fetch(url, {
-                    method: 'POST', headers: {'Content-Type': 'application/json'},
-                    body: JSON.stringify({ contents: [{ parts: [{text: promptText}] }] })
-                });
-                const data = await response.json();
-                let result = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim());
+                const rawText = await fetchGeminiWithFallback(apiKey, [{text: promptText}]);
+                
+                let result = JSON.parse(rawText.replace(/```json/g, '').replace(/```/g, '').trim());
                 if(Array.isArray(result)) result = result[0];
 
                 card.querySelector('.q-content-text').value = result.content;
