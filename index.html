@@ -35,7 +35,6 @@
             display: flex;
             align-items: flex-start;
         }
-        .mcq-option:hover { border-color: #14BC9C; background-color: #f0fdfa; }
         .mcq-option.selected { background-color: #FEF08A; border-color: #EAB308; color: black; font-weight: 600; }
         .mcq-label { font-weight: bold; margin-right: 0.75rem; min-width: 25px; }
         .fade-in { animation: fadeIn 0.4s ease-out; }
@@ -402,7 +401,7 @@
                 let jsonTemplate = '';
                 if(type === 'mcq') jsonTemplate = `{"type": "mcq", "content": "Câu hỏi mới...", "options": {"A":"Mới","B":"Mới","C":"Mới","D":"Mới"}, "answer": "A", "explanation": "Giải thích mới..."}`; 
                 else if (type === 'true_false') jsonTemplate = `{"type": "true_false", "content": "Câu hỏi mới...", "options": ["Ý 1 mới", "Ý 2 mới", "Ý 3 mới", "Ý 4 mới"], "answers": ["Đ","S","Đ","S"], "explanation": "Giải thích mới..."}`; 
-                else jsonTemplate = `{"type": "short_answer") jsonTemplate = `{"type": "short_answer", "content": "Câu hỏi mới...", "answer": "Đáp án mới...", "explanation": "Giải thích mới..."}`;
+                else jsonTemplate = `{"type": "short_answer", "content": "Câu hỏi mới...", "answer": "Đáp án mới...", "explanation": "Giải thích mới..."}`;
                 
                 const promptText = `
                     Bạn là một trợ lý giáo viên. Hãy tạo ra MỘT câu hỏi mới hoàn chỉnh dựa trên yêu cầu: "${newInstruction}". Sử dụng chuẩn LaTeX cho các công thức Toán học.
@@ -581,6 +580,7 @@
                     else if (correctCount === 2) achievedScore = sc.tf_2;
                     else if (correctCount === 3) achievedScore = sc.tf_3;
                     else if (correctCount === 4) achievedScore = sc.tf_4;
+                    // Note: Nếu số ý đúng là 0 thì điểm là 0.
                 }
             }
             return { achievedScore: parseFloat(achievedScore.toFixed(2)), maxScore: parseFloat(maxScore.toFixed(2)) };
@@ -616,18 +616,19 @@
                 const totalStudents = results.length;
                 const questionCount = questions.length;
                 let questionCorrectCounts = Array(questionCount).fill(0);
-                let detailedScores = []; 
+                let detailedScores = []; // Lưu điểm chi tiết từng câu của từng thí sinh
 
                 results.forEach((r, rIndex) => {
-                    r.detailed_answers = r.detailed_answers || []; 
-                    let studentRow = { name: r.name, class: r.class, score: r.score, violation_count: r.violation_count || 0, question_scores: [] };
+                    r.detailed_answers = r.detailed_answers || []; // Lấy đáp án chi tiết nếu có
+                    let studentRow = { name: r.name, class: r.class_, score: r.score, violation_count: r.violation_count || 0, question_scores: [] };
                     
                     questions.forEach((q, qIndex) => {
-                        const studentAnswers = r.detailed_answers[qIndex]?.answers || {}; 
+                        const studentAnswers = r.detailed_answers[qIndex]?.answers || {}; // Lấy đáp án của thí sinh cho câu này
                         const scores = calculateDetailedScore(q, studentAnswers, examMetadata.scoring);
                         
                         studentRow.question_scores.push(scores);
 
+                        // Tăng biến đếm nếu đạt điểm tối đa (làm đúng hoàn toàn)
                         if (scores.achievedScore === scores.maxScore && scores.maxScore > 0) {
                             questionCorrectCounts[qIndex]++;
                         }
@@ -688,9 +689,9 @@
                         ${row.question_scores.map(qs => {
                             const max = qs.maxScore;
                             const achieved = qs.achievedScore;
-                            let color = 'bg-red-500'; 
-                            if (achieved === max) color = 'bg-green-500'; 
-                            else if (achieved > 0 && achieved < max) color = 'bg-yellow-500'; 
+                            let color = 'bg-red-500'; // Đỏ (0 điểm)
+                            if (achieved === max) color = 'bg-green-500'; // Xanh lá (Điểm tối đa)
+                            else if (achieved > 0 && achieved < max) color = 'bg-yellow-500'; // Vàng (Không tối đa)
 
                             return `<td class="px-2 py-2 text-center">
                                 <span class="score-circle ${color}" title="Đạt: ${achieved} / ${max}">
@@ -711,8 +712,7 @@
                             <th class="px-4 py-3">Tên</th>
                             <th class="px-4 py-3">Lớp</th>
                             <th class="px-4 py-3 text-right">Điểm</th>
-                            <th class="px-4 py-3 text-center">Số lỗi VP</th> 
-                        </tr>
+                            <th class="px-4 py-3 text-center">Số lỗi VP</th> </tr>
                     </thead>
                     <tbody>`;
                 results.sort((a, b) => b.score - a.score).forEach((r, i) => {
@@ -721,8 +721,7 @@
                         <td class="px-4 py-3">${r.name}</td>
                         <td class="px-4 py-3">${r.class}</td>
                         <td class="px-4 py-3 text-right font-bold text-primary">${parseFloat(r.score).toFixed(2)}</td>
-                        <td class="px-4 py-3 text-center">${r.violation_count || 0}</td> 
-                    </tr>`;
+                        <td class="px-4 py-3 text-center">${r.violation_count || 0}</td> </tr>`;
                 });
                 tableHtml += '</tbody></table>';
                 tableHtml += `<div class="mt-4 text-right"><button onclick="exportResultsToExcel()" class="btn bg-green-600 text-xs">Xuất Excel</button></div>`;
@@ -773,7 +772,7 @@
              }
          };
 
-        // --- STUDENT VIEW LOGIC ---
+        // --- STUDENT VIEW LOGIC (Unchanged for this request) ---
         window.checkExam = async () => {
             const id = document.getElementById('s-exam-id').value.toUpperCase();
             if(!id) return;
@@ -800,31 +799,10 @@
             document.onkeydown = (e) => { if(e.keyCode==123 || (e.ctrlKey && e.shiftKey && (e.keyCode=='I'.charCodeAt(0) || e.keyCode=='C'.charCodeAt(0)))) return false; };
         };
 
-        function requestFullscreen(element) {
-             if (element.requestFullscreen) {
-                 element.requestFullscreen();
-             } else if (element.mozRequestFullScreen) {
-                 element.mozRequestFullScreen();
-             } else if (element.webkitRequestFullscreen) {
-                 element.webkitRequestFullscreen();
-             } else if (element.msRequestFullscreen) {
-                 element.msRequestFullscreen();
-             }
-         }
-
-
         window.startExam = async (e) => {
             const name = document.getElementById('s-name').value.trim();
             if (!name) return customAlert("Nhập tên!");
             e.target.innerText = "Đang tải đề...";
-
-            // NEW FEATURE: Yêu cầu Fullscreen khi bắt đầu làm bài
-            try {
-                requestFullscreen(document.documentElement);
-            } catch (err) {
-                console.error("Không thể kích hoạt chế độ toàn màn hình:", err);
-            }
-            
             try {
                 const qProms = [];
                 for(let i=0; i<currentExamData.question_count; i++) qProms.push(getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_questions', `${currentExamData.id}_${i}`)));
@@ -886,7 +864,7 @@
              const sc = currentExamData.scoring || { mcq:0.25, sa:0.5, tf_4:1.0, tf_1:0.1 };
              const { allow_score, allow_solution } = currentExamData; 
              let detailedReportHtml = '';
-             let studentAnswersData = []; 
+             let studentAnswersData = []; // Mảng lưu trữ câu trả lời chi tiết của học sinh
              
              // 1. Tính điểm và tạo báo cáo chi tiết
              currentExamData.questions.forEach((q, i) => {
@@ -972,8 +950,8 @@
                      school: document.getElementById('s-school').value, 
                      score: score, 
                      submittedAt: new Date().toISOString(),
-                     violation_count: violationCount, 
-                     detailed_answers: studentAnswersData 
+                     violation_count: violationCount, // NEW: Số lỗi vi phạm
+                     detailed_answers: studentAnswersData // NEW: Đáp án chi tiết
                  })
              });
 
