@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Full Control)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Advanced Analytics)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -35,11 +35,25 @@
             display: flex;
             align-items: flex-start;
         }
-        .mcq-option:hover { border-color: #14BC9C; background-color: #f0fdfa; }
         .mcq-option.selected { background-color: #FEF08A; border-color: #EAB308; color: black; font-weight: 600; }
         .mcq-label { font-weight: bold; margin-right: 0.75rem; min-width: 25px; }
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* CSS cho hình tròn điểm */
+        .score-circle {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            width: 30px;
+            height: 30px;
+            border-radius: 50%;
+            font-size: 10px;
+            font-weight: bold;
+            color: white;
+            flex-shrink: 0;
+            margin: 2px;
+        }
     </style>
 </head>
 <body class="p-4 min-h-screen flex flex-col items-center">
@@ -132,10 +146,32 @@
                 <hr class="my-6">
 
                 <div class="card">
-                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-4 mb-6">📊 Xem Kết Quả</h2>
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-4 mb-6">📊 Xem Kết Quả & Phân Tích</h2>
                     <div class="flex gap-4 mb-6"><input type="text" id="result-exam-id" class="input-field flex-grow" placeholder="Nhập Mã Đề"><button onclick="loadResults()" class="btn">Xem</button></div>
-                    <div id="results-table-container" class="overflow-x-auto"><p class="text-gray-500 text-center italic">Chưa có dữ liệu.</p></div>
-                    <div id="results-chart-container" class="card p-6 mb-6 hidden"><div style="height: 300px;"><canvas id="scoreChart"></canvas></div></div>
+                    
+                    <div id="results-charts-analysis" class="hidden space-y-8">
+                        
+                        <div class="card p-6 border border-gray-200">
+                             <h3 class="text-lg font-bold text-gray-800 mb-4">1. Phân tích phân bố điểm</h3>
+                             <div style="height: 300px;"><canvas id="scoreChart"></canvas></div>
+                        </div>
+
+                        <div class="card p-6 border border-gray-200">
+                             <h3 class="text-lg font-bold text-gray-800 mb-4">2. Tỉ lệ thí sinh làm đúng theo Câu Hỏi</h3>
+                             <div style="height: 300px;"><canvas id="questionCorrectnessChart"></canvas></div>
+                        </div>
+
+                         <div class="card p-6 border border-gray-200">
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">3. Thống kê chi tiết điểm từng câu</h3>
+                            <div id="detailed-score-table" class="overflow-x-auto"></div>
+                        </div>
+
+                    </div>
+
+                    <div id="results-table-container" class="overflow-x-auto mt-8">
+                        <p class="text-gray-500 text-center italic">Chưa có dữ liệu.</p>
+                    </div>
+
                 </div>
             </div>
 
@@ -183,7 +219,7 @@
         import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { apiKey: "AIzaSyCY_WIQ_nAy4Guxg6OMRtNW-F6qhb2U4BI", authDomain: "flutter-ai-playground-fd478.firebaseapp.com", projectId: "flutter-ai-playground-fd478", storageBucket: "flutter-ai-playground-fd478.firebasestorage.app", messagingSenderId: "321777356764", appId: "1:321777356764:web:7ea129a40de01a4cc5c919" };
-        const APP_ID = 'itex-v9-control-view';
+        const APP_ID = 'itex-v10-analytics';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -192,7 +228,7 @@
         let currentExamData = null;
         let examTimer = null;
         let detectedModelName = null;
-        let violationCount = 0;
+        let violationCount = 0; // Số lỗi vi phạm của học sinh hiện tại
 
         signInAnonymously(auth);
         onAuthStateChanged(auth, (user) => {
@@ -303,12 +339,12 @@
         // --- 1. AI GENERATION & EDITING ---
         window.generateWithAI = async (btn) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
-            if(!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
+            if (!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
             
             const numMcq = parseInt(document.getElementById('ai-num-mcq').value) || 0;
             const numTf = parseInt(document.getElementById('ai-num-tf').value) || 0;
             const numSa = parseInt(document.getElementById('ai-num-sa').value) || 0;
-            if(numMcq + numTf + numSa === 0) return customAlert("Vui lòng chọn số lượng câu hỏi!");
+            if (numMcq + numTf + numSa === 0) return customAlert("Vui lòng chọn số lượng câu hỏi!");
 
             btn.disabled = true; btn.innerHTML = "🔍 Đang tạo đề...";
             try {
@@ -323,14 +359,14 @@
                 const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. Sử dụng chuẩn LaTeX cho các công thức Toán học. Output JSON Array only (no markdown). Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, { "type": "true_false", ...}, { "type": "short_answer", ...}]`;
                 
                 parts.push({text: promptText});
-                if(topicText) parts.push({text: `Chủ đề: ${topicText}`});
-                if(fileInput.files.length > 0) parts.push({ inline_data: { mime_type: fileInput.files[0].type || "application/pdf", data: await fileToBase64(fileInput.files[0]) } });
+                if (topicText) parts.push({text: `Chủ đề: ${topicText}`});
+                if (fileInput.files.length > 0) parts.push({ inline_data: { mime_type: fileInput.files[0].type || "application/pdf", data: await fileToBase64(fileInput.files[0]) } });
 
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: parts }] })
                 });
                 const data = await res.json();
-                if(data.error) throw new Error(data.error.message);
+                if (data.error) throw new Error(data.error.message);
                 const questions = JSON.parse(data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim());
                 questions.forEach((q) => {
                     const container = document.getElementById('questions-list');
@@ -510,28 +546,233 @@
             } catch (e) { customAlert(e.message); btn.disabled = false; btn.innerText = "💾 Tạo Đề"; }
         }
 
+        // Hàm chấm điểm chi tiết cho Teacher Analytics (tính điểm từng câu)
+        function calculateDetailedScore(q, studentAnswers, scoring) {
+            let maxScore = 0;
+            let achievedScore = 0;
+            const sc = scoring;
+
+            if (q.type === 'mcq') {
+                maxScore = sc.mcq;
+                if (studentAnswers.mcq === q.answer) achievedScore = sc.mcq;
+            } else if (q.type === 'short_answer') {
+                maxScore = sc.sa;
+                if (studentAnswers.sa?.trim().toLowerCase() === q.answer.toLowerCase()) achievedScore = sc.sa;
+            } else if (q.type === 'true_false') {
+                const correctAnswers = q.answers || [];
+                const numOptions = correctAnswers.length;
+                if (numOptions > 0) {
+                    // Tùy thuộc số lượng ý, điểm tối đa sẽ khác nhau
+                    if (numOptions === 1) maxScore = sc.tf_1;
+                    else if (numOptions === 2) maxScore = sc.tf_2;
+                    else if (numOptions === 3) maxScore = sc.tf_3;
+                    else if (numOptions === 4) maxScore = sc.tf_4;
+
+                    let correctCount = 0;
+                    for (let j = 0; j < numOptions; j++) {
+                        if (studentAnswers.tf && studentAnswers.tf[j] === correctAnswers[j]) {
+                            correctCount++;
+                        }
+                    }
+
+                    // Chấm điểm theo số lượng ý đúng đạt được
+                    if (correctCount === 1) achievedScore = sc.tf_1;
+                    else if (correctCount === 2) achievedScore = sc.tf_2;
+                    else if (correctCount === 3) achievedScore = sc.tf_3;
+                    else if (correctCount === 4) achievedScore = sc.tf_4;
+                    // Note: Nếu số ý đúng là 0 thì điểm là 0.
+                }
+            }
+            return { achievedScore: parseFloat(achievedScore.toFixed(2)), maxScore: parseFloat(maxScore.toFixed(2)) };
+        }
+
+
         window.loadResults = async () => {
             const id = document.getElementById('result-exam-id').value.trim().toUpperCase();
-            if(!id) return customAlert("Vui lòng nhập Mã Đề!");
+            if (!id) return customAlert("Vui lòng nhập Mã Đề!");
             const btn = document.querySelector('button[onclick="loadResults()"]');
             btn.disabled = true; btn.innerText = "Đang tải...";
+
             try {
-                const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_results', id));
-                if (!snap.exists() || !snap.data().results || snap.data().results.length === 0) { document.getElementById('results-table-container').innerHTML = '<p class="text-center text-gray-500 py-4">Chưa có dữ liệu.</p>'; return; }
-                const results = snap.data().results.sort((a, b) => b.score - a.score);
-                let html = `<table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-100"><tr><th class="px-4 py-3">Hạng</th><th class="px-4 py-3">Tên</th><th class="px-4 py-3">Lớp</th><th class="px-4 py-3 text-right">Điểm</th></tr></thead><tbody>`;
-                results.forEach((r, i) => html += `<tr class="bg-white border-b"><td class="px-4 py-3 font-bold">${i+1}</td><td class="px-4 py-3">${r.name}</td><td class="px-4 py-3">${r.class_}</td><td class="px-4 py-3 text-right font-bold text-primary">${parseFloat(r.score).toFixed(2)}</td></tr>`);
-                html += '</tbody></table>';
-                html += `<div class="mt-4 text-right"><button onclick="XLSX.writeFile(XLSX.utils.table_to_book(document.querySelector('table'), {sheet:'KQ'}), 'KetQua_${id}.xlsx')" class="btn bg-green-600 text-xs">Xuất Excel</button></div>`;
-                document.getElementById('results-table-container').innerHTML = html;
-                document.getElementById('results-chart-container').classList.remove('hidden');
-                if(window.scoreChartInstance) window.scoreChartInstance.destroy();
-                window.scoreChartInstance = new Chart(document.getElementById('scoreChart'), { type: 'bar', data: { labels: ['0-2', '2-4', '4-6', '6-8', '8-10'], datasets: [{ label: 'Số lượng', data: [0,0,0,0,0].map((_,i)=>results.filter(r=>{const s=r.score;if(i==0)return s<2;if(i==1)return s>=2&&s<4;if(i==2)return s>=4&&s<6;if(i==3)return s>=6&&s<8;if(i==4)return s>=8}).length), backgroundColor: '#3B82F6' }] } });
-                renderLaTeX(document.getElementById('results-table-container'));
-            } catch (e) { customAlert("Lỗi: " + e.message); } finally { btn.disabled = false; btn.innerText = "Xem"; }
+                // 1. Tải Metadata & Results
+                const examSnap = await getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_exams', id));
+                if (!examSnap.exists()) throw new Error("Mã đề không tồn tại.");
+                const examMetadata = examSnap.data();
+                const resultsSnap = await getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_results', id));
+                const results = resultsSnap.data()?.results || [];
+
+                if (results.length === 0) {
+                    document.getElementById('results-table-container').innerHTML = '<p class="text-center text-gray-500 py-4">Chưa có dữ liệu.</p>';
+                    document.getElementById('results-charts-analysis').classList.add('hidden');
+                    return;
+                }
+
+                // 2. Tải chi tiết các câu hỏi (để lấy max score)
+                const qProms = [];
+                for (let i = 0; i < examMetadata.question_count; i++) qProms.push(getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_questions', `${id}_${i}`)));
+                const questions = (await Promise.all(qProms)).map(s => s.data());
+
+                // 3. Phân tích dữ liệu chi tiết
+                const totalStudents = results.length;
+                const questionCount = questions.length;
+                let questionCorrectCounts = Array(questionCount).fill(0);
+                let detailedScores = []; // Lưu điểm chi tiết từng câu của từng thí sinh
+
+                results.forEach((r, rIndex) => {
+                    r.detailed_answers = r.detailed_answers || []; // Lấy đáp án chi tiết nếu có
+                    let studentRow = { name: r.name, class: r.class_, score: r.score, violation_count: r.violation_count || 0, question_scores: [] };
+                    
+                    questions.forEach((q, qIndex) => {
+                        const studentAnswers = r.detailed_answers[qIndex]?.answers || {}; // Lấy đáp án của thí sinh cho câu này
+                        const scores = calculateDetailedScore(q, studentAnswers, examMetadata.scoring);
+                        
+                        studentRow.question_scores.push(scores);
+
+                        // Tăng biến đếm nếu đạt điểm tối đa (làm đúng hoàn toàn)
+                        if (scores.achievedScore === scores.maxScore && scores.maxScore > 0) {
+                            questionCorrectCounts[qIndex]++;
+                        }
+                    });
+                    detailedScores.push(studentRow);
+                });
+
+                // 4. Báo cáo Tỉ lệ làm đúng theo Câu hỏi (Biểu đồ cột)
+                const questionLabels = questions.map((_, i) => `Câu ${i + 1}`);
+                const correctnessPercentages = questionCorrectCounts.map(count => (count / totalStudents) * 100);
+
+                if (window.questionCorrectnessChartInstance) window.questionCorrectnessChartInstance.destroy();
+                window.questionCorrectnessChartInstance = new Chart(document.getElementById('questionCorrectnessChart'), {
+                    type: 'bar',
+                    data: {
+                        labels: questionLabels,
+                        datasets: [{
+                            label: 'Tỉ lệ làm đúng (%)',
+                            data: correctnessPercentages,
+                            backgroundColor: '#3B82F6',
+                            borderColor: '#1D4ED8',
+                            borderWidth: 1
+                        }]
+                    },
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: { display: true, text: 'Phần trăm thí sinh đúng' }
+                            }
+                        }
+                    }
+                });
+
+                // 5. Bảng thống kê chi tiết điểm từng câu (Hình tròn màu)
+                let detailedTableHtml = `<table class="w-full text-sm text-left text-gray-700">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3 sticky left-0 bg-gray-100 w-40">Thí sinh</th>
+                            <th class="px-4 py-3 text-right">Tổng điểm</th>
+                            ${questionLabels.map(label => `<th class="px-2 py-3 text-center">${label}</th>`).join('')}
+                        </tr>
+                        <tr>
+                            <th class="px-4 py-1 sticky left-0 bg-gray-200 w-40">Điểm tối đa</th>
+                            <th class="px-4 py-1 text-right font-bold">${examMetadata.question_count > 0 ? questions.reduce((sum, q) => sum + calculateDetailedScore(q, {}, examMetadata.scoring).maxScore, 0).toFixed(2) : 'N/A'}</th>
+                            ${questions.map(q => `<th class="px-2 py-1 text-center bg-gray-200">${calculateDetailedScore(q, {}, examMetadata.scoring).maxScore.toFixed(2)}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>`;
+                
+                detailedScores.forEach(row => {
+                    detailedTableHtml += `<tr class="bg-white border-b hover:bg-gray-50">
+                        <td class="px-4 py-3 sticky left-0 bg-white">${row.name} (${row.class})</td>
+                        <td class="px-4 py-3 text-right font-bold text-primary">${row.score.toFixed(2)}</td>
+                        ${row.question_scores.map(qs => {
+                            const max = qs.maxScore;
+                            const achieved = qs.achievedScore;
+                            let color = 'bg-red-500'; // Đỏ (0 điểm)
+                            if (achieved === max) color = 'bg-green-500'; // Xanh lá (Điểm tối đa)
+                            else if (achieved > 0 && achieved < max) color = 'bg-yellow-500'; // Vàng (Không tối đa)
+
+                            return `<td class="px-2 py-2 text-center">
+                                <span class="score-circle ${color}" title="Đạt: ${achieved} / ${max}">
+                                    ${achieved.toFixed(2)}
+                                </span>
+                            </td>`;
+                        }).join('')}
+                    </tr>`;
+                });
+                detailedTableHtml += '</tbody></table>';
+                document.getElementById('detailed-score-table').innerHTML = detailedTableHtml;
+                
+                // 6. Bảng kết quả tổng hợp (có thêm cột Vi phạm)
+                let tableHtml = `<table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3">Hạng</th>
+                            <th class="px-4 py-3">Tên</th>
+                            <th class="px-4 py-3">Lớp</th>
+                            <th class="px-4 py-3 text-right">Điểm</th>
+                            <th class="px-4 py-3 text-center">Số lỗi VP</th> </tr>
+                    </thead>
+                    <tbody>`;
+                results.sort((a, b) => b.score - a.score).forEach((r, i) => {
+                    tableHtml += `<tr class="bg-white border-b">
+                        <td class="px-4 py-3 font-bold">${i+1}</td>
+                        <td class="px-4 py-3">${r.name}</td>
+                        <td class="px-4 py-3">${r.class}</td>
+                        <td class="px-4 py-3 text-right font-bold text-primary">${parseFloat(r.score).toFixed(2)}</td>
+                        <td class="px-4 py-3 text-center">${r.violation_count || 0}</td> </tr>`;
+                });
+                tableHtml += '</tbody></table>';
+                tableHtml += `<div class="mt-4 text-right"><button onclick="exportResultsToExcel()" class="btn bg-green-600 text-xs">Xuất Excel</button></div>`;
+                document.getElementById('results-table-container').innerHTML = tableHtml;
+                
+                // 7. Cập nhật biểu đồ tổng điểm (phân bố điểm)
+                if (window.scoreChartInstance) window.scoreChartInstance.destroy();
+                window.scoreChartInstance = new Chart(document.getElementById('scoreChart'), { 
+                    type: 'bar', 
+                    data: { 
+                        labels: ['0-2', '2-4', '4-6', '6-8', '8-10'], 
+                        datasets: [{ 
+                            label: 'Số lượng thí sinh', 
+                            data: [0,0,0,0,0].map((_,i)=>{
+                                return results.filter(r=>{
+                                    const s=r.score;
+                                    if(i===0)return s<2;
+                                    if(i===1)return s>=2&&s<4;
+                                    if(i===2)return s>=4&&s<6;
+                                    if(i===3)return s>=6&&s<8;
+                                    return s>=8
+                                }).length
+                            }), 
+                            backgroundColor: '#3B82F6' 
+                        }] 
+                    } 
+                });
+                
+                document.getElementById('results-charts-analysis').classList.remove('hidden');
+                renderLaTeX(document.getElementById('results-charts-analysis'));
+
+            } catch (e) { 
+                customAlert("Lỗi tải kết quả: " + e.message); 
+                document.getElementById('results-charts-analysis').classList.add('hidden');
+            } finally { 
+                btn.disabled = false; btn.innerText = "Xem"; 
+            }
         };
 
-        // --- STUDENT UI & LOGIC ---
+        // NEW: Hàm xuất Excel
+        window.exportResultsToExcel = () => {
+             const id = document.getElementById('result-exam-id').value.trim().toUpperCase();
+             const table = document.getElementById('results-table-container').querySelector('table');
+             if (table) {
+                 XLSX.writeFile(XLSX.utils.table_to_book(table, {sheet:'KQ'}), `KetQua_${id}_VP.xlsx`);
+             } else {
+                 customAlert("Không tìm thấy bảng kết quả để xuất.");
+             }
+         };
+
+        // --- STUDENT VIEW LOGIC (Unchanged for this request) ---
         window.checkExam = async () => {
             const id = document.getElementById('s-exam-id').value.toUpperCase();
             if(!id) return;
@@ -621,18 +862,22 @@
              document.getElementById('btn-submit').disabled = true; document.getElementById('btn-submit').innerText = "Đang chấm...";
              let score = 0; 
              const sc = currentExamData.scoring || { mcq:0.25, sa:0.5, tf_4:1.0, tf_1:0.1 };
-             // Lấy quyền hạn
              const { allow_score, allow_solution } = currentExamData; 
              let detailedReportHtml = '';
+             let studentAnswersData = []; // Mảng lưu trữ câu trả lời chi tiết của học sinh
              
-             // 1. Tính điểm và tạo báo cáo chi tiết (luôn tạo, nhưng hiển thị tùy theo allow_solution)
+             // 1. Tính điểm và tạo báo cáo chi tiết
              currentExamData.questions.forEach((q, i) => {
                  let studentAnswerDisplay = 'Chưa trả lời';
                  let correctAnswerDisplay = '';
                  let isCorrect = false;
                  
+                 let currentQAnswers = {};
+                 
                  if (q.type === 'mcq') {
                      const studentChoice = document.getElementById(`ans-${i}`)?.value;
+                     currentQAnswers.mcq = studentChoice;
+                     
                      studentAnswerDisplay = studentChoice || 'Chưa chọn';
                      correctAnswerDisplay = q.answer;
                      isCorrect = (studentChoice === q.answer);
@@ -641,6 +886,8 @@
                      if(isCorrect) score += sc.mcq;
                  } else if (q.type === 'short_answer') {
                      const studentText = document.getElementById(`ans-${i}`)?.value;
+                     currentQAnswers.sa = studentText;
+
                      studentAnswerDisplay = studentText || 'Chưa nhập';
                      correctAnswerDisplay = q.answer;
                      isCorrect = (studentText?.trim().toLowerCase() === q.answer.toLowerCase());
@@ -651,11 +898,16 @@
                      let correctAnswers = q.answers || [];
                      let correctCount = 0;
                      
+                     let studentTF = [];
+
                      for (let j = 0; j < (q.tf_options?.length || 4); j++) {
                          let studentChoice = document.getElementById(`tf-${i}-${j}`)?.checked ? 'Đ' : 'S';
+                         studentTF.push(studentChoice);
+
                          studentChoices.push(`Ý ${['a','b','c','d'][j]}: ${studentChoice}`);
                          if (studentChoice === correctAnswers[j]) correctCount++;
                      }
+                     currentQAnswers.tf = studentTF;
                      
                      studentAnswerDisplay = studentChoices.join(' | ');
                      correctAnswerDisplay = (q.tf_options || []).map((t, j) => `Ý ${['a','b','c','d'][j]}: ${correctAnswers[j]}`).join(' | ');
@@ -665,6 +917,8 @@
                          isCorrect = (correctCount === correctAnswers.length && correctCount > 0);
                      }
                  }
+                 
+                 studentAnswersData.push({ answers: currentQAnswers });
 
                  const statusClass = isCorrect ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50';
                  const statusText = isCorrect ? 'ĐÚNG' : 'SAI';
@@ -688,24 +942,30 @@
                  `;
              });
 
-             // 2. Cập nhật Firebase
+             // 2. Cập nhật Firebase (Lưu cả violation count và detailed answers)
              await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_results', currentExamData.id), {
-                 results: arrayUnion({ name: document.getElementById('s-name').value, class_: document.getElementById('s-class').value, school: document.getElementById('s-school').value, score: score, submittedAt: new Date().toISOString() })
+                 results: arrayUnion({ 
+                     name: document.getElementById('s-name').value, 
+                     class: document.getElementById('s-class').value, 
+                     school: document.getElementById('s-school').value, 
+                     score: score, 
+                     submittedAt: new Date().toISOString(),
+                     violation_count: violationCount, // NEW: Số lỗi vi phạm
+                     detailed_answers: studentAnswersData // NEW: Đáp án chi tiết
+                 })
              });
 
-             // 3. Hiển thị kết quả dựa trên quyền hạn (allow_score, allow_solution)
+             // 3. Hiển thị kết quả dựa trên quyền hạn
              document.getElementById('taking-exam').classList.add('hidden'); 
              document.getElementById('student-result').classList.remove('hidden');
 
-             // A. Kiểm soát điểm tổng
              if (allow_score) {
                  document.getElementById('final-score').innerText = score.toFixed(2);
              } else {
                  document.getElementById('score-display-box').innerHTML = '<p class="text-xl font-bold text-red-500">Giáo viên đã **khóa** tính năng xem điểm.</p>';
              }
 
-             // B. Kiểm soát lời giải chi tiết
-             if (allow_solution && allow_score) { // Chỉ cho xem lời giải nếu đồng thời được xem điểm
+             if (allow_solution && allow_score) { 
                  document.getElementById('report-details-container').innerHTML = detailedReportHtml;
                  document.getElementById('report-title').innerText = '📜 Kết Quả Chi Tiết Từng Câu 📜';
                  renderLaTeX(document.getElementById('report-details-container')); 
@@ -713,7 +973,6 @@
                  document.getElementById('report-details-container').innerHTML = '<p class="text-center italic text-gray-500 p-4 border rounded">Tính năng xem lời giải chi tiết đã bị **khóa**.</p>';
                  document.getElementById('report-title').innerText = '📜 Tóm Tắt Bài Làm 📜';
              } else {
-                 // Nếu khóa cả 2, chỉ hiển thị thông báo đã nộp bài
                  document.getElementById('report-details-container').innerHTML = '<p class="text-center italic text-gray-500 p-4 border rounded">Kết quả chi tiết và lời giải đã bị **khóa**.</p>';
                  document.getElementById('report-title').innerText = '📜 Bài Làm Đã Được Nộp 📜';
              }
