@@ -8,11 +8,10 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
-    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
-    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js" 
-            onload="renderMathInElement(document.body);"></script>
+    
     <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js"></script>
     
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
@@ -156,7 +155,7 @@
     </div>
 
     <div id="custom-alert-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[9999]"><div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center"><h3 id="modal-title" class="text-lg font-bold mb-3">Thông Báo</h3><p id="modal-message" class="text-gray-600 mb-6"></p><button id="modal-close-btn" class="btn bg-gray-500">Đóng</button></div></div>
-    <div id="password-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[9999]"><div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center"><h3 class="text-lg font-bold mb-4">🔐 Nhập Key Admin</h3><input type="password" id="admin-key-input" class="input-field mb-6 text-center"><div class="flex gap-2 justify-center"><button onclick="document.getElementById('password-modal').classList.add('hidden')" class="btn bg-gray-500">Hủy</button><button onclick="checkAdminKey()" class="btn">Vào</button></div></div></div>
+    <div id="password-modal" class="hidden fixed inset-0 bg-gray-600 bg-opacity-50 flex items-center justify-center z-[9999]"><div class="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center"><h3 class="text-lg font-bold mb-4">🔐 Nhập Key Admin</h3><input type="password" id="admin-key-input" class="input-field mb-6 text-center" onkeydown="if(event.key === 'Enter') checkAdminKey()"><div class="flex gap-2 justify-center"><button onclick="document.getElementById('password-modal').classList.add('hidden')" class="btn bg-gray-500">Hủy</button><button onclick="checkAdminKey()" class="btn">Vào</button></div></div></div>
 
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-app.js";
@@ -183,22 +182,28 @@
                 document.getElementById('main-content').classList.remove('hidden');
             }
         });
-        
-        // --- MATHJAX/KATEX RENDERER ---
-        // Hàm này sẽ gọi sau khi DOM thay đổi để render lại công thức toán
+
+        // --- MATHJAX/KATEX RENDERER (Configured) ---
         function renderLaTeX(element = document.body) {
             if (window.renderMathInElement) {
                 renderMathInElement(element, {
                     delimiters: [
-                        {left: '$$', right: '$$', display: true},
-                        {left: '$', right: '$', display: false},
-                        {left: '\\(', right: '\\)', display: false},
-                        {left: '\\[', right: '\\]', display: true}
+                        {left: '$$', right: '$$', display: true},  // Block math
+                        {left: '\\[', right: '\\]', display: true}, // Block math standard
+                        {left: '$', right: '$', display: false},    // Inline math (KaTeX standard)
+                        {left: '\\(', right: '\\)', display: false} // Inline math standard
                     ],
                     throwOnError: false
                 });
+            } else {
+                console.warn("KaTeX auto-render not loaded. Math rendering disabled.");
             }
         }
+
+        // Khởi tạo KaTeX sau khi DOM chính đã tải
+        document.addEventListener('DOMContentLoaded', () => {
+             renderLaTeX(document.body);
+        });
         
         // --- HELPERS ---
 
@@ -299,7 +304,7 @@
                     ? `Đóng vai giáo viên ${document.getElementById('t-subject').value || 'Môn học'} lớp ${document.getElementById('t-grade').value || 'Lớp học'}. Tạo đề kiểm tra tổng hợp.`
                     : `Tạo đề kiểm tra dựa trên nội dung dưới đây.`;
 
-                const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. Output JSON Array only (no markdown). Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, { "type": "true_false", ...}, { "type": "short_answer", ...}]`;
+                const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. Sử dụng chuẩn LaTeX cho các công thức Toán học. Output JSON Array only (no markdown). Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, { "type": "true_false", ...}, { "type": "short_answer", ...}]`;
                 
                 parts.push({text: promptText});
                 if(topicText) parts.push({text: `Chủ đề: ${topicText}`});
@@ -347,7 +352,7 @@
                 else jsonTemplate = `{"type": "short_answer", "content": "Câu hỏi mới...", "answer": "Đáp án mới...", "explanation": "Giải thích mới..."}`;
                 
                 const promptText = `
-                    Bạn là một trợ lý giáo viên. Hãy tạo ra MỘT câu hỏi mới hoàn chỉnh dựa trên yêu cầu: "${newInstruction}". 
+                    Bạn là một trợ lý giáo viên. Hãy tạo ra MỘT câu hỏi mới hoàn chỉnh dựa trên yêu cầu: "${newInstruction}". Sử dụng chuẩn LaTeX cho các công thức Toán học.
                     
                     Loại câu hỏi gốc: ${type}
                     Nội dung câu hỏi gốc: ${currentContent}
@@ -428,12 +433,10 @@
                 const qDivs = document.getElementById('questions-list').children;
                 const questions = [];
                 
-                // Lặp qua các câu hỏi và đọc dữ liệu động
                 for(let i=0; i<qDivs.length; i++) {
                     const div = qDivs[i];
                     const type = div.querySelector('.q-type')?.value || 'mcq';
                     
-                    // Sử dụng optional chaining để đọc các input trong thẻ
                     let imgData = div.querySelector('.q-img-base64-hidden')?.value || '';
                     const imgFile = div.querySelector('.q-img-file');
                     if(!imgData && imgFile?.files[0]) imgData = await fileToBase64(imgFile.files[0]);
@@ -448,7 +451,6 @@
                     if(type === 'mcq') {
                         ansData.answer = div.querySelector('.q-ans-mcq')?.value || 'A';
                         
-                        // Đọc các phương án con một cách an toàn
                         const optA = div.querySelector('.q-opt-A')?.value || '';
                         const optB = div.querySelector('.q-opt-B')?.value || '';
                         const optC = div.querySelector('.q-opt-C')?.value || '';
@@ -471,7 +473,6 @@
                 const examId = Math.random().toString(36).substring(2, 8).toUpperCase();
                 const getScoreValue = (id, fallback) => parseFloat(document.getElementById(id)?.value || fallback);
                 
-                // Đọc Metadata với kiểm tra an toàn
                 const metadata = {
                     teacher: tName, grade: document.getElementById('t-grade').value, subject: document.getElementById('t-subject').value,
                     time: document.getElementById('t-time')?.value || 15, question_count: questions.length, created_at: new Date().toISOString(),
