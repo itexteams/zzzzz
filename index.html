@@ -8,6 +8,12 @@
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/marked/marked.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.js"></script>
+    <script defer src="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/contrib/auto-render.min.js" 
+            onload="renderMathInElement(document.body);"></script>
+    <link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/katex@0.16.10/dist/katex.min.css">
+    
     <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;600;700&display=swap" rel="stylesheet">
     <style>
         body { font-family: 'Inter', sans-serif; background-color: #87F5DB; }
@@ -47,6 +53,8 @@
             </div>
             <div id="user-info" class="text-sm text-gray-500">Đang tải...</div>
         </div>
+        
+        <hr class="mb-4">
 
         <div id="loading" class="text-center py-20">
             <div class="animate-spin rounded-full h-12 w-12 border-b-2 border-primary mx-auto"></div>
@@ -61,6 +69,8 @@
                     <button onclick="setRole('student')" class="btn py-8 text-xl flex flex-col items-center justify-center gap-2 hover:scale-105 transition-transform"><span>👨‍🎓</span> HỌC SINH</button>
                 </div>
             </div>
+            
+            <hr class="my-6">
 
             <div id="teacher-view" class="hidden space-y-6">
                 <div class="card">
@@ -78,14 +88,19 @@
                     
                     <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-200 mb-8">
                         <h3 class="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">🤖 AI Generator (Auto Detect)</h3>
-                        <div class="mb-4"><label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label><input type="password" id="ai-api-key" class="input-field" placeholder="Dán API Key..."><div id="model-status" class="text-xs font-mono text-green-700 mt-1 hidden"></div></div>
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label>
+                            <input type="password" id="ai-api-key" class="input-field" placeholder="Dán API Key..." 
+                                   onkeydown="if(event.key === 'Enter') generateWithAI(document.querySelector('#ai-generate-btn'))">
+                            <div id="model-status" class="text-xs font-mono text-green-700 mt-1 hidden"></div>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div><label class="block text-sm text-gray-600">Trắc nghiệm</label><input type="number" id="ai-num-mcq" class="input-field" value="5" min="0"></div>
                             <div><label class="block text-sm text-gray-600">Đúng/Sai</label><input type="number" id="ai-num-tf" class="input-field" value="0" min="0"></div>
                             <div><label class="block text-sm text-gray-600">Trả lời ngắn</label><input type="number" id="ai-num-sa" class="input-field" value="0" min="0"></div>
                         </div>
                         <div class="mb-4"><label class="block text-sm font-semibold text-gray-700 mb-1">Nguồn dữ liệu</label><input type="file" id="ai-upload-file" accept=".txt,.pdf,image/*" class="block w-full text-sm text-gray-500 mb-2"><textarea id="ai-topic-text" class="input-field h-24" placeholder="Nhập chủ đề..."></textarea></div>
-                        <div class="text-right"><button onclick="generateWithAI(this)" class="btn bg-indigo-600 hover:bg-indigo-700 shadow-lg flex items-center gap-2 ml-auto"><span>✨</span> Tạo Câu Hỏi Ngay</button></div>
+                        <div class="text-right"><button onclick="generateWithAI(this)" id="ai-generate-btn" class="btn bg-indigo-600 hover:bg-indigo-700 shadow-lg flex items-center gap-2 ml-auto"><span>✨</span> Tạo Câu Hỏi Ngay</button></div>
                     </div>
 
                     <div class="space-y-3 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
@@ -103,6 +118,8 @@
                     <div id="questions-list" class="space-y-6 mb-6"></div>
                     <div class="flex flex-wrap gap-4 border-t pt-6"><button onclick="addQuestion()" class="btn bg-green-500 hover:bg-green-600">+ Thêm Thủ Công</button><button onclick="saveExam(this)" class="btn ml-auto">💾 Tạo Đề & Lấy Mã</button></div>
                 </div>
+                
+                <hr class="my-6">
 
                 <div class="card">
                     <h2 class="text-2xl font-bold text-gray-800 border-b pb-4 mb-6">📊 Xem Kết Quả</h2>
@@ -147,7 +164,7 @@
         import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { apiKey: "AIzaSyCY_WIQ_nAy4Guxg6OMRtNW-F6qhb2U4BI", authDomain: "flutter-ai-playground-fd478.firebaseapp.com", projectId: "flutter-ai-playground-fd478", storageBucket: "flutter-ai-playground-fd478.firebasestorage.app", messagingSenderId: "321777356764", appId: "1:321777356764:web:7ea129a40de01a4cc5c919" };
-        const APP_ID = 'itex-v6-stable';
+        const APP_ID = 'itex-v7-latex';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -166,6 +183,24 @@
                 document.getElementById('main-content').classList.remove('hidden');
             }
         });
+        
+        // --- MATHJAX/KATEX RENDERER ---
+        // Hàm này sẽ gọi sau khi DOM thay đổi để render lại công thức toán
+        function renderLaTeX(element = document.body) {
+            if (window.renderMathInElement) {
+                renderMathInElement(element, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true},
+                        {left: '$', right: '$', display: false},
+                        {left: '\\(', right: '\\)', display: false},
+                        {left: '\\[', right: '\\]', display: true}
+                    ],
+                    throwOnError: false
+                });
+            }
+        }
+        
+        // --- HELPERS ---
 
         window.customAlert = (msg, title="Thông Báo", cb) => {
             document.getElementById('modal-title').innerText = title;
@@ -284,6 +319,7 @@
                     q.aiGenerated = true;
                     div.innerHTML = generateQuestionEditorHTML(q, idx);
                     container.appendChild(div);
+                    renderLaTeX(div); // Render LaTeX cho thẻ mới
                 });
                 customAlert(`Đã tạo ${questions.length} câu hỏi!`);
             } catch (e) { customAlert(`Lỗi: ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
@@ -337,6 +373,7 @@
 
                 // CẬP NHẬT UI BẰNG CÁCH VẼ LẠI TOÀN BỘ CARD
                 card.innerHTML = generateQuestionEditorHTML(newQuestionData, idx); 
+                renderLaTeX(card); // Render LaTeX cho thẻ vừa sửa
 
                 customAlert("Đã tạo câu hỏi mới thành công!", "Sửa Đề Hoàn Tất");
 
@@ -372,17 +409,18 @@
                 const currentIdx = Array.from(container.children).indexOf(div);
                 div.innerHTML = generateQuestionEditorHTML(dummyData, currentIdx);
                 div.querySelector('.q-type').value = newType;
+                
+                renderLaTeX(div); // Render LaTeX cho thẻ vừa thêm
             });
 
             container.appendChild(div);
         }
-        
+
         window.previewImage = (input, id) => { if(input.files[0]) { const r = new FileReader(); r.onload = (e) => { document.getElementById(id).src = e.target.result; document.getElementById(id).classList.remove('hidden'); }; r.readAsDataURL(input.files[0]); } }
 
         window.saveExam = async (btn) => {
             btn.disabled = true; btn.innerText = "Lưu...";
             try {
-                // Đọc input tĩnh với kiểm tra null an toàn
                 const tNameInput = document.getElementById('t-name');
                 if(!tNameInput || !tNameInput.value) throw new Error("Nhập tên giáo viên!");
                 const tName = tNameInput.value;
@@ -416,7 +454,6 @@
                         const optC = div.querySelector('.q-opt-C')?.value || '';
                         const optD = div.querySelector('.q-opt-D')?.value || '';
                         
-                        // Chỉ lưu options nếu có ít nhất 1 giá trị
                         if(optA || optB || optC || optD) { 
                             ansData.options = { A: optA, B: optB, C: optC, D: optD };
                         }
@@ -470,6 +507,7 @@
                 document.getElementById('results-chart-container').classList.remove('hidden');
                 if(window.scoreChartInstance) window.scoreChartInstance.destroy();
                 window.scoreChartInstance = new Chart(document.getElementById('scoreChart'), { type: 'bar', data: { labels: ['0-2', '2-4', '4-6', '6-8', '8-10'], datasets: [{ label: 'Số lượng', data: [0,0,0,0,0].map((_,i)=>results.filter(r=>{const s=r.score;if(i==0)return s<2;if(i==1)return s>=2&&s<4;if(i==2)return s>=4&&s<6;if(i==3)return s>=6&&s<8;return s>=8}).length), backgroundColor: '#3B82F6' }] } });
+                renderLaTeX(document.getElementById('results-table-container'));
             } catch (e) { customAlert("Lỗi: " + e.message); } finally { btn.disabled = false; btn.innerText = "Xem"; }
         };
 
@@ -537,10 +575,12 @@
                     div.innerHTML = `<div class="flex justify-between mb-3"><h4 class="font-bold bg-gray-200 px-3 py-1 rounded-full">Câu ${i+1}</h4><span class="text-xs font-bold text-gray-400 uppercase">${q.type}</span></div>${content}${input}`;
                     container.appendChild(div);
                 });
-
+                
                 document.getElementById('student-info-form').classList.add('hidden');
                 document.getElementById('taking-exam').classList.remove('hidden');
                 
+                renderLaTeX(document.getElementById('taking-exam')); // Render LaTeX cho toàn bộ phần thi
+
                 let time = currentExamData.time * 60;
                 examTimer = setInterval(() => {
                     document.getElementById('timer').innerText = `${Math.floor(time/60).toString().padStart(2,'0')}:${(time%60).toString().padStart(2,'0')}`;
