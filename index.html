@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Final Stable)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Ultra Stable)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -360,26 +360,29 @@
             
             // Xử lý sự kiện thay đổi loại câu hỏi (thủ công)
             const typeSelect = div.querySelector('.q-type');
-            typeSelect.onchange = (e) => {
+            typeSelect.addEventListener('change', (e) => {
                 const newType = e.target.value;
-                const dummyData = { type: newType, content: '', explanation: '' };
-                const newHtml = generateQuestionEditorHTML(dummyData, idx);
-                // Tạo một div tạm thời để thay thế nội dung (giữ lại các sự kiện cũ)
-                div.innerHTML = newHtml;
+                const dummyData = { type: newType, content: '', explanation: '' }; 
+                
+                // Lấy lại nội dung hiện tại trước khi re-render
+                dummyData.content = div.querySelector('.q-content-text')?.value || '';
+                dummyData.explanation = div.querySelector('.q-explanation')?.value || '';
+                
+                // Re-render the inner HTML with the new type's structure
+                const currentIdx = Array.from(container.children).indexOf(div);
+                div.innerHTML = generateQuestionEditorHTML(dummyData, currentIdx);
                 div.querySelector('.q-type').value = newType;
-                div.querySelector('.q-type').onchange = typeSelect.onchange; // Gán lại sự kiện
-            };
-
+            });
 
             container.appendChild(div);
         }
         
-        // --- CHÚ THÍCH: Hàm này đã được sửa lỗi hiển thị theo cách an toàn hơn ---
         window.previewImage = (input, id) => { if(input.files[0]) { const r = new FileReader(); r.onload = (e) => { document.getElementById(id).src = e.target.result; document.getElementById(id).classList.remove('hidden'); }; r.readAsDataURL(input.files[0]); } }
 
         window.saveExam = async (btn) => {
             btn.disabled = true; btn.innerText = "Lưu...";
             try {
+                // Đọc input tĩnh với kiểm tra null an toàn
                 const tNameInput = document.getElementById('t-name');
                 if(!tNameInput || !tNameInput.value) throw new Error("Nhập tên giáo viên!");
                 const tName = tNameInput.value;
@@ -387,29 +390,51 @@
                 const qDivs = document.getElementById('questions-list').children;
                 const questions = [];
                 
+                // Lặp qua các câu hỏi và đọc dữ liệu động
                 for(let i=0; i<qDivs.length; i++) {
                     const div = qDivs[i];
-                    const type = div.querySelector('.q-type').value;
+                    const type = div.querySelector('.q-type')?.value || 'mcq';
+                    
+                    // Sử dụng optional chaining để đọc các input trong thẻ
                     let imgData = div.querySelector('.q-img-base64-hidden')?.value || '';
                     const imgFile = div.querySelector('.q-img-file');
                     if(!imgData && imgFile?.files[0]) imgData = await fileToBase64(imgFile.files[0]);
                     
-                    let ansData = { type, img_data: imgData, text_content: div.querySelector('.q-content-text')?.value || '', explanation: div.querySelector('.q-explanation')?.value || '' };
+                    let ansData = { 
+                        type, 
+                        img_data: imgData, 
+                        text_content: div.querySelector('.q-content-text')?.value || '', 
+                        explanation: div.querySelector('.q-explanation')?.value || '' 
+                    };
                     
                     if(type === 'mcq') {
                         ansData.answer = div.querySelector('.q-ans-mcq')?.value || 'A';
-                        if(div.querySelector('.q-opt-A')) ansData.options = { A: div.querySelector('.q-opt-A').value, B: div.querySelector('.q-opt-B').value, C: div.querySelector('.q-opt-C').value, D: div.querySelector('.q-opt-D').value };
-                    } else if(type === 'short_answer') ansData.answer = div.querySelector('.q-ans-sa')?.value || '';
-                    else if(type === 'true_false' && div.querySelector('.q-ans-tf')) {
+                        
+                        // Đọc các phương án con một cách an toàn
+                        const optA = div.querySelector('.q-opt-A')?.value || '';
+                        const optB = div.querySelector('.q-opt-B')?.value || '';
+                        const optC = div.querySelector('.q-opt-C')?.value || '';
+                        const optD = div.querySelector('.q-opt-D')?.value || '';
+                        
+                        // Chỉ lưu options nếu có ít nhất 1 giá trị
+                        if(optA || optB || optC || optD) { 
+                            ansData.options = { A: optA, B: optB, C: optC, D: optD };
+                        }
+                        
+                    } else if(type === 'short_answer') {
+                        ansData.answer = div.querySelector('.q-ans-sa')?.value || '';
+                    } else if(type === 'true_false') {
                         const selects = div.querySelectorAll('.q-ans-tf');
                         ansData.answers = Array.from(selects).map(s => s.value);
-                        ansData.tf_options = []; div.querySelectorAll('input[class*="q-tf-opt-"]').forEach(inp => ansData.tf_options.push(inp.value));
+                        ansData.tf_options = []; 
+                        div.querySelectorAll('input[class*="q-tf-opt-"]').forEach(inp => ansData.tf_options.push(inp.value));
                     }
                     questions.push(ansData);
                 }
                 const examId = Math.random().toString(36).substring(2, 8).toUpperCase();
                 const getScoreValue = (id, fallback) => parseFloat(document.getElementById(id)?.value || fallback);
                 
+                // Đọc Metadata với kiểm tra an toàn
                 const metadata = {
                     teacher: tName, grade: document.getElementById('t-grade').value, subject: document.getElementById('t-subject').value,
                     time: document.getElementById('t-time')?.value || 15, question_count: questions.length, created_at: new Date().toISOString(),
@@ -419,6 +444,7 @@
                         tf_3: getScoreValue('score-tf3', 0.5), tf_4: getScoreValue('score-tf4', 1.0)
                     }
                 };
+                
                 await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_exams', examId), metadata);
                 const writes = questions.map((q, i) => setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_questions', `${examId}_${i}`), q));
                 await Promise.all(writes);
