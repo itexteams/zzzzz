@@ -116,12 +116,12 @@
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-6 bg-gray-100 p-4 rounded-lg border border-gray-300">
                         <div class="flex items-center">
-                            <input type="checkbox" id="allow-view-score" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" checked>
-                            <label for="allow-view-score" class="ml-2 text-sm font-semibold text-gray-700">Cho phép xem **Điểm/Kết quả** tổng hợp</label>
-                        </div>
-                        <div class="flex items-center">
                             <input type="checkbox" id="allow-view-solution" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500">
                             <label for="allow-view-solution" class="ml-2 text-sm font-semibold text-gray-700">Cho phép xem **Lời giải chi tiết**</label>
+                        </div>
+                        <div class="flex items-center">
+                            <input type="checkbox" id="allow-view-score" class="w-4 h-4 text-indigo-600 rounded focus:ring-indigo-500" checked>
+                            <label for="allow-view-score" class="ml-2 text-sm font-semibold text-gray-700">Cho phép xem **Điểm/Kết quả** tổng hợp</label>
                         </div>
                     </div>
                     
@@ -492,10 +492,9 @@
                 const metadata = {
                     teacher: tName, grade: document.getElementById('t-grade').value, subject: document.getElementById('t-subject').value,
                     time: document.getElementById('t-time')?.value || 15, question_count: questions.length, created_at: new Date().toISOString(),
-                    // NEW: Cấu hình quyền xem kết quả
+                    // Cấu hình quyền xem kết quả
                     allow_score: document.getElementById('allow-view-score').checked,
                     allow_solution: document.getElementById('allow-view-solution').checked,
-                    // End NEW
                     scoring: { 
                         mcq: getScoreValue('score-mcq', 0.25), sa: getScoreValue('score-sa', 0.5), 
                         tf_1: getScoreValue('score-tf1', 0.1), tf_2: getScoreValue('score-tf2', 0.25),
@@ -527,7 +526,7 @@
                 document.getElementById('results-table-container').innerHTML = html;
                 document.getElementById('results-chart-container').classList.remove('hidden');
                 if(window.scoreChartInstance) window.scoreChartInstance.destroy();
-                window.scoreChartInstance = new Chart(document.getElementById('scoreChart'), { type: 'bar', data: { labels: ['0-2', '2-4', '4-6', '6-8', '8-10'], datasets: [{ label: 'Số lượng', data: [0,0,0,0,0].map((_,i)=>results.filter(r=>{const s=r.score;if(i==0)return s<2;if(i==1)return s>=2&&s<4;if(i==2)return s>=4&&s<6;if(i==3)return s>=6&&s<8;return s>=8}).length), backgroundColor: '#3B82F6' }] } });
+                window.scoreChartInstance = new Chart(document.getElementById('scoreChart'), { type: 'bar', data: { labels: ['0-2', '2-4', '4-6', '6-8', '8-10'], datasets: [{ label: 'Số lượng', data: [0,0,0,0,0].map((_,i)=>results.filter(r=>{const s=r.score;if(i==0)return s<2;if(i==1)return s>=2&&s<4;if(i==2)return s>=4&&s<6;if(i==3)return s>=6&&s<8;if(i==4)return s>=8}).length), backgroundColor: '#3B82F6' }] } });
                 renderLaTeX(document.getElementById('results-table-container'));
             } catch (e) { customAlert("Lỗi: " + e.message); } finally { btn.disabled = false; btn.innerText = "Xem"; }
         };
@@ -622,7 +621,8 @@
              document.getElementById('btn-submit').disabled = true; document.getElementById('btn-submit').innerText = "Đang chấm...";
              let score = 0; 
              const sc = currentExamData.scoring || { mcq:0.25, sa:0.5, tf_4:1.0, tf_1:0.1 };
-             const { allow_score, allow_solution } = currentExamData; // Lấy quyền hạn
+             // Lấy quyền hạn
+             const { allow_score, allow_solution } = currentExamData; 
              let detailedReportHtml = '';
              
              // 1. Tính điểm và tạo báo cáo chi tiết (luôn tạo, nhưng hiển thị tùy theo allow_solution)
@@ -705,12 +705,16 @@
              }
 
              // B. Kiểm soát lời giải chi tiết
-             if (allow_solution) {
+             if (allow_solution && allow_score) { // Chỉ cho xem lời giải nếu đồng thời được xem điểm
                  document.getElementById('report-details-container').innerHTML = detailedReportHtml;
                  document.getElementById('report-title').innerText = '📜 Kết Quả Chi Tiết Từng Câu 📜';
                  renderLaTeX(document.getElementById('report-details-container')); 
+             } else if (allow_score && !allow_solution) {
+                 document.getElementById('report-details-container').innerHTML = '<p class="text-center italic text-gray-500 p-4 border rounded">Tính năng xem lời giải chi tiết đã bị **khóa**.</p>';
+                 document.getElementById('report-title').innerText = '📜 Tóm Tắt Bài Làm 📜';
              } else {
-                 document.getElementById('report-details-container').innerHTML = '<p class="text-center italic text-gray-500 p-4 border rounded">Tính năng xem lời giải đã bị **khóa**.</p>';
+                 // Nếu khóa cả 2, chỉ hiển thị thông báo đã nộp bài
+                 document.getElementById('report-details-container').innerHTML = '<p class="text-center italic text-gray-500 p-4 border rounded">Kết quả chi tiết và lời giải đã bị **khóa**.</p>';
                  document.getElementById('report-title').innerText = '📜 Bài Làm Đã Được Nộp 📜';
              }
         }
