@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (AI Pro)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (AI Stable)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -33,7 +33,7 @@
         <div class="flex items-center justify-between mb-6 bg-white p-4 rounded-xl shadow-md">
             <div class="flex items-center space-x-3">
                 <span class="text-3xl">🤖</span>
-                <h1 class="text-xl font-bold text-gray-800">iTeX - Kiểm Tra Online & AI Pro</h1>
+                <h1 class="text-xl font-bold text-gray-800">iTeX - Kiểm Tra Online & AI Flash</h1>
             </div>
             <div id="user-info" class="text-sm text-gray-500">Đang tải...</div>
         </div>
@@ -98,7 +98,7 @@
                     
                     <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-200 mb-8">
                         <h3 class="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">
-                            🤖 Tạo Câu Hỏi Thông Minh (Gemini Pro)
+                            🤖 Tạo Câu Hỏi Thông Minh (Gemini Flash)
                         </h3>
                         
                         <div class="mb-4">
@@ -242,7 +242,7 @@
              messagingSenderId: "321777356764",
              appId: "1:321777356764:web:7ea129a40de01a4cc5c919"
         };
-        const APP_ID = 'itex-v2-ai';
+        const APP_ID = 'itex-v2-ai-fixed';
 
         // INIT
         const app = initializeApp(firebaseConfig);
@@ -296,7 +296,7 @@
             reader.readAsDataURL(file);
         });
 
-        // --- AI GENERATION LOGIC (UPDATED: GEMINI PRO & AUTO GENERATION) ---
+        // --- AI GENERATION LOGIC (UPDATED MODEL TO FLASH) ---
         window.generateWithAI = async (btn) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
             if(!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
@@ -312,25 +312,18 @@
             const fileInput = document.getElementById('ai-upload-file');
             const topicText = document.getElementById('ai-topic-text').value.trim();
             
-            // XÓA KIỂM TRA BẮT BUỘC FILE. Thay bằng logic tự sinh.
-            
             btn.disabled = true;
-            btn.innerHTML = "⏳ Gemini Pro đang suy nghĩ...";
+            btn.innerHTML = "⏳ Gemini đang suy nghĩ...";
 
             try {
-                // Prepare Content Parts
                 let parts = [];
-                // System Prompt
                 let contextPrompt = "";
                 
-                // Logic xử lý Prompt: Có file/text hay không?
                 if (fileInput.files.length === 0 && !topicText) {
-                    // TRƯỜNG HỢP TỰ ĐỘNG (Không có tài liệu)
                     contextPrompt = `Hãy đóng vai giáo viên bộ môn ${subject} lớp ${grade}. 
                     Hãy tự động tạo ra một bộ đề kiểm tra tổng hợp kiến thức tiêu biểu cho môn học và trình độ này. 
                     Nội dung câu hỏi phải đa dạng, bao quát chương trình học.`;
                 } else {
-                    // TRƯỜNG HỢP CÓ TÀI LIỆU
                     contextPrompt = `Bạn là giáo viên môn ${subject} lớp ${grade}. 
                     Hãy tạo đề kiểm tra dựa trên nội dung tài liệu hoặc văn bản được cung cấp bên dưới.`;
                 }
@@ -354,8 +347,6 @@
                 `;
                 
                 parts.push({text: promptText});
-
-                // User Content (nếu có)
                 if (topicText) parts.push({text: `Nội dung/Chủ đề tham khảo:\n${topicText}`});
                 
                 if (fileInput.files.length > 0) {
@@ -365,10 +356,8 @@
                     parts.push({ inline_data: { mime_type: mimeType, data: base64 } });
                 }
 
-                // Call Gemini API (UPDATED MODEL TO PRO)
-                // Lưu ý: Hiện tại model công khai mạnh nhất là gemini-1.5-pro. 
-                // Nếu bạn có quyền truy cập gemini-2.5-pro, hãy đổi string bên dưới.
-                const modelName = 'gemini-1.5-pro'; 
+                // CHANGED: Use gemini-1.5-flash for reliability
+                const modelName = 'gemini-1.5-flash'; 
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
                 
                 const response = await fetch(url, {
@@ -385,7 +374,6 @@
                 
                 const questions = JSON.parse(rawText);
 
-                // Render Questions
                 const container = document.getElementById('questions-list');
                 questions.forEach(q => {
                     addQuestionFromAI(q);
@@ -475,8 +463,7 @@
 
             btn.innerHTML = "⏳...";
             try {
-                // Sửa cũng dùng model Pro
-                const modelName = 'gemini-1.5-pro';
+                const modelName = 'gemini-1.5-flash';
                 const url = `https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`;
                 
                 const promptText = `Sửa câu hỏi sau: "${newInstruction}". Gốc: ${content}. Loại: ${type}. Output JSON format cũ.`;
