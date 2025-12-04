@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (AI & Anti-Cheat)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (AI Fixed)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -19,7 +19,7 @@
         .input-field { width: 100%; padding: 0.75rem; border: 1px solid #d1d5db; border-radius: 0.5rem; outline: none; transition: border-color 0.2s; }
         .input-field:focus { border-color: #14BC9C; ring: 2px solid #14BC9C; }
         
-        /* CSS MỚI CHO TRẮC NGHIỆM */
+        /* CSS CHO TRẮC NGHIỆM */
         .mcq-option {
             border: 2px solid #e5e7eb;
             border-radius: 0.5rem;
@@ -30,23 +30,9 @@
             display: flex;
             align-items: flex-start;
         }
-        .mcq-option:hover {
-            border-color: #14BC9C;
-            background-color: #f0fdfa;
-        }
-        /* Khi được chọn: Màu vàng */
-        .mcq-option.selected {
-            background-color: #FEF08A; /* yellow-200 */
-            border-color: #EAB308;     /* yellow-500 */
-            color: black;
-            font-weight: 600;
-        }
-        .mcq-label {
-            font-weight: bold;
-            margin-right: 0.75rem;
-            min-width: 25px;
-        }
-        
+        .mcq-option:hover { border-color: #14BC9C; background-color: #f0fdfa; }
+        .mcq-option.selected { background-color: #FEF08A; border-color: #EAB308; color: black; font-weight: 600; }
+        .mcq-label { font-weight: bold; margin-right: 0.75rem; min-width: 25px; }
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
     </style>
@@ -81,97 +67,46 @@
                     <h2 class="text-2xl font-bold text-gray-800 border-b pb-4 mb-6">📝 Tạo Đề Kiểm Tra Mới</h2>
                     
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Họ tên Giáo viên <span class="text-red-500">*</span></label>
-                            <input type="text" id="t-name" class="input-field" placeholder="Nhập tên của bạn">
-                        </div>
-                        <div>
-                            <label class="block text-sm font-semibold text-gray-700 mb-2">Thời gian (phút)</label>
-                            <input type="number" id="t-time" class="input-field" value="15" min="1">
-                        </div>
+                        <div><label class="block text-sm font-semibold text-gray-700 mb-2">Giáo viên *</label><input type="text" id="t-name" class="input-field" placeholder="Nhập tên"></div>
+                        <div><label class="block text-sm font-semibold text-gray-700 mb-2">Thời gian (phút)</label><input type="number" id="t-time" class="input-field" value="15" min="1"></div>
                     </div>
 
                     <div class="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6 bg-yellow-50 p-4 rounded-lg border border-yellow-200">
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">📚 Chọn Lớp</label>
-                            <select id="t-grade" class="input-field">
-                                <option value="">-- Chọn lớp --</option>
-                                <script>for(let i=1; i<=12; i++) document.write(`<option value="${i}">Lớp ${i}</option>`);</script>
-                            </select>
-                        </div>
-                        <div>
-                            <label class="block text-sm font-bold text-gray-700 mb-2">📖 Chọn Môn Học</label>
-                            <select id="t-subject" class="input-field">
-                                <option value="">-- Chọn môn học --</option>
-                                <option value="Toán">Toán</option>
-                                <option value="Ngữ Văn">Ngữ Văn</option>
-                                <option value="Tiếng Anh">Tiếng Anh</option>
-                                <option value="Vật lí">Vật lí</option>
-                                <option value="Hóa học">Hóa học</option>
-                                <option value="Sinh học">Sinh học</option>
-                                <option value="Lịch sử">Lịch sử</option>
-                                <option value="Địa lí">Địa lí</option>
-                                <option value="GD Kinh tế & Pháp luật">GD Kinh tế & Pháp luật</option>
-                                <option value="Tin học">Tin học</option>
-                                <option value="Công nghệ">Công nghệ</option>
-                            </select>
-                        </div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-2">📚 Lớp</label><select id="t-grade" class="input-field"><script>for(let i=1; i<=12; i++) document.write(`<option value="${i}">Lớp ${i}</option>`);</script></select></div>
+                        <div><label class="block text-sm font-bold text-gray-700 mb-2">📖 Môn</label><select id="t-subject" class="input-field"><option value="Toán">Toán</option><option value="Ngữ Văn">Ngữ Văn</option><option value="Tiếng Anh">Tiếng Anh</option><option value="Vật lí">Vật lí</option><option value="Hóa học">Hóa học</option><option value="Sinh học">Sinh học</option><option value="Lịch sử">Lịch sử</option><option value="Địa lí">Địa lí</option><option value="GD Kinh tế & Pháp luật">GD Kinh tế & Pháp luật</option><option value="Tin học">Tin học</option><option value="Công nghệ">Công nghệ</option></select></div>
                     </div>
                     
                     <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-200 mb-8">
-                        <h3 class="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">🤖 Tạo Câu Hỏi Thông Minh (Auto Detect AI)</h3>
-                        <div class="mb-4">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label>
-                            <input type="password" id="ai-api-key" class="input-field" placeholder="Dán API Key của bạn vào đây...">
-                            <div id="model-status" class="text-xs font-mono text-green-700 mt-1 hidden"></div>
-                        </div>
+                        <h3 class="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">🤖 AI Generator (Auto Detect)</h3>
+                        <div class="mb-4"><label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label><input type="password" id="ai-api-key" class="input-field" placeholder="Dán API Key..."><div id="model-status" class="text-xs font-mono text-green-700 mt-1 hidden"></div></div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div><label class="block text-sm text-gray-600">Số câu Trắc nghiệm</label><input type="number" id="ai-num-mcq" class="input-field" value="5" min="0"></div>
-                            <div><label class="block text-sm text-gray-600">Số câu Đúng/Sai</label><input type="number" id="ai-num-tf" class="input-field" value="0" min="0"></div>
-                            <div><label class="block text-sm text-gray-600">Số câu Trả lời ngắn</label><input type="number" id="ai-num-sa" class="input-field" value="0" min="0"></div>
+                            <div><label class="block text-sm text-gray-600">Trắc nghiệm</label><input type="number" id="ai-num-mcq" class="input-field" value="5" min="0"></div>
+                            <div><label class="block text-sm text-gray-600">Đúng/Sai</label><input type="number" id="ai-num-tf" class="input-field" value="0" min="0"></div>
+                            <div><label class="block text-sm text-gray-600">Trả lời ngắn</label><input type="number" id="ai-num-sa" class="input-field" value="0" min="0"></div>
                         </div>
-                        <div class="mb-4">
-                            <label class="block text-sm font-semibold text-gray-700 mb-1">Nguồn dữ liệu (Tùy chọn)</label>
-                            <input type="file" id="ai-upload-file" accept=".txt,.pdf,image/*" class="block w-full text-sm text-gray-500 file:mr-4 file:py-2 file:px-4 file:rounded-full file:border-0 file:text-sm file:font-semibold file:bg-indigo-100 file:text-indigo-700 hover:file:bg-indigo-200 mb-2">
-                            <textarea id="ai-topic-text" class="input-field h-24" placeholder="Nhập chủ đề cụ thể..."></textarea>
-                        </div>
+                        <div class="mb-4"><label class="block text-sm font-semibold text-gray-700 mb-1">Nguồn dữ liệu</label><input type="file" id="ai-upload-file" accept=".txt,.pdf,image/*" class="block w-full text-sm text-gray-500 mb-2"><textarea id="ai-topic-text" class="input-field h-24" placeholder="Nhập chủ đề..."></textarea></div>
                         <div class="text-right"><button onclick="generateWithAI(this)" class="btn bg-indigo-600 hover:bg-indigo-700 shadow-lg flex items-center gap-2 ml-auto"><span>✨</span> Tạo Câu Hỏi Ngay</button></div>
                     </div>
 
                     <div class="space-y-3 mb-6 bg-gray-50 p-4 rounded-lg border border-gray-200">
                         <h3 class="font-bold text-gray-800 text-sm">Cấu hình điểm số:</h3>
                          <div class="grid grid-cols-2 md:grid-cols-6 gap-2 text-xs mt-2">
-                            <div><label>Trắc nghiệm</label><input type="number" id="score-mcq" class="input-field py-1" step="0.01" value="0.25"></div>
-                            <div><label>Trả lời ngắn</label><input type="number" id="score-sa" class="input-field py-1" step="0.01" value="0.5"></div>
-                            <div><label>Đ/S (1 ý)</label><input type="number" id="score-tf1" class="input-field py-1" step="0.01" value="0.1"></div>
-                            <div><label>Đ/S (2 ý)</label><input type="number" id="score-tf2" class="input-field py-1" step="0.01" value="0.25"></div>
-                            <div><label>Đ/S (3 ý)</label><input type="number" id="score-tf3" class="input-field py-1" step="0.01" value="0.5"></div>
-                            <div><label>Đ/S (4 ý)</label><input type="number" id="score-tf4" class="input-field py-1" step="0.01" value="1.0"></div>
+                            <div><label>MCQ</label><input type="number" id="score-mcq" class="input-field py-1" step="0.01" value="0.25"></div>
+                            <div><label>SA</label><input type="number" id="score-sa" class="input-field py-1" step="0.01" value="0.5"></div>
+                            <div><label>TF(1)</label><input type="number" id="score-tf1" class="input-field py-1" step="0.01" value="0.1"></div>
+                            <div><label>TF(2)</label><input type="number" id="score-tf2" class="input-field py-1" step="0.01" value="0.25"></div>
+                            <div><label>TF(3)</label><input type="number" id="score-tf3" class="input-field py-1" step="0.01" value="0.5"></div>
+                            <div><label>TF(4)</label><input type="number" id="score-tf4" class="input-field py-1" step="0.01" value="1.0"></div>
                         </div>
                     </div>
                     
-                    <div class="mb-8 border-t pt-4">
-                        <details>
-                            <summary class="cursor-pointer text-blue-600 font-semibold text-sm">🔽 Import Excel (Cũ)</summary>
-                            <div class="bg-blue-50 p-4 rounded mt-2"><button onclick="customAlert('Tính năng cũ.')" class="btn bg-blue-500 text-xs mt-2">Xử lý Import</button></div>
-                        </details>
-                    </div>
-
-                    <h3 class="text-lg font-bold text-gray-800 mb-2 border-b pb-2">Danh Sách Câu Hỏi</h3>
                     <div id="questions-list" class="space-y-6 mb-6"></div>
-
-                    <div class="flex flex-wrap gap-4 border-t pt-6">
-                        <button onclick="addQuestion()" class="btn bg-green-500 hover:bg-green-600">+ Thêm Thủ Công</button>
-                        <button onclick="saveExam(this)" class="btn ml-auto">💾 Tạo Đề & Lấy Mã</button>
-                    </div>
+                    <div class="flex flex-wrap gap-4 border-t pt-6"><button onclick="addQuestion()" class="btn bg-green-500 hover:bg-green-600">+ Thêm Thủ Công</button><button onclick="saveExam(this)" class="btn ml-auto">💾 Tạo Đề & Lấy Mã</button></div>
                 </div>
 
                 <div class="card">
-                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-4 mb-6">📊 Xem Kết Quả Thi</h2>
-                    <div class="flex gap-4 mb-6">
-                        <input type="text" id="result-exam-id" class="input-field flex-grow" placeholder="Nhập Mã Đề">
-                        <button onclick="loadResults()" class="btn">Xem</button>
-                    </div>
+                    <h2 class="text-2xl font-bold text-gray-800 border-b pb-4 mb-6">📊 Xem Kết Quả</h2>
+                    <div class="flex gap-4 mb-6"><input type="text" id="result-exam-id" class="input-field flex-grow" placeholder="Nhập Mã Đề"><button onclick="loadResults()" class="btn">Xem</button></div>
                     <div id="results-table-container" class="overflow-x-auto"><p class="text-gray-500 text-center italic">Chưa có dữ liệu.</p></div>
                     <div id="results-chart-container" class="card p-6 mb-6 hidden"><div style="height: 300px;"><canvas id="scoreChart"></canvas></div></div>
                 </div>
@@ -180,19 +115,11 @@
             <div id="student-view" class="hidden max-w-3xl mx-auto space-y-6">
                 <div id="student-entry" class="card">
                     <h2 class="text-2xl font-bold text-center text-gray-800 mb-6">Vào Thi</h2>
-                    <div class="space-y-4">
-                        <input type="text" id="s-exam-id" class="input-field text-center text-xl tracking-widest uppercase" placeholder="NHẬP MÃ ĐỀ">
-                        <button onclick="checkExam()" class="btn w-full py-3 text-lg">Kiểm Tra Mã</button>
-                    </div>
+                    <div class="space-y-4"><input type="text" id="s-exam-id" class="input-field text-center text-xl tracking-widest uppercase" placeholder="NHẬP MÃ ĐỀ"><button onclick="checkExam()" class="btn w-full py-3 text-lg">Kiểm Tra Mã</button></div>
                 </div>
                 <div id="student-info-form" class="card hidden">
                     <h3 id="exam-info-display" class="text-lg font-semibold text-center text-primary mb-4"></h3>
-                    <div class="space-y-4">
-                        <input type="text" id="s-name" class="input-field" placeholder="Họ và tên">
-                        <input type="text" id="s-school" class="input-field" placeholder="Trường">
-                        <input type="text" id="s-class" class="input-field" placeholder="Lớp">
-                        <button onclick="startExam(event)" class="btn w-full py-3 font-bold bg-green-600 hover:bg-green-700">🚀 BẮT ĐẦU LÀM BÀI</button>
-                    </div>
+                    <div class="space-y-4"><input type="text" id="s-name" class="input-field" placeholder="Họ và tên"><input type="text" id="s-school" class="input-field" placeholder="Trường"><input type="text" id="s-class" class="input-field" placeholder="Lớp"><button onclick="startExam(event)" class="btn w-full py-3 font-bold bg-green-600 hover:bg-green-700">🚀 BẮT ĐẦU LÀM BÀI</button></div>
                 </div>
                 <div id="taking-exam" class="hidden">
                     <div class="sticky top-4 z-50 bg-white p-4 rounded-xl shadow-lg border-2 border-primary mb-6 flex flex-wrap justify-between items-center gap-2">
@@ -204,10 +131,7 @@
                 </div>
                 <div id="student-result" class="card hidden text-center">
                     <h2 class="text-3xl font-bold text-primary mb-2">Hoàn Thành!</h2>
-                    <div id="score-display-box" class="bg-yellow-50 p-6 rounded-xl border-2 border-yellow-400 inline-block mb-8">
-                        <p class="text-sm text-gray-500 uppercase font-semibold">Tổng Điểm</p>
-                        <p id="final-score" class="text-6xl font-extrabold text-gray-800 mt-2">0.00</p>
-                    </div>
+                    <div id="score-display-box" class="bg-yellow-50 p-6 rounded-xl border-2 border-yellow-400 inline-block mb-8"><p class="text-sm text-gray-500 uppercase font-semibold">Tổng Điểm</p><p id="final-score" class="text-6xl font-extrabold text-gray-800 mt-2">0.00</p></div>
                     <button onclick="location.reload()" class="btn mt-8 bg-gray-600">Thoát</button>
                 </div>
             </div>
@@ -223,7 +147,7 @@
         import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { apiKey: "AIzaSyCY_WIQ_nAy4Guxg6OMRtNW-F6qhb2U4BI", authDomain: "flutter-ai-playground-fd478.firebaseapp.com", projectId: "flutter-ai-playground-fd478", storageBucket: "flutter-ai-playground-fd478.firebasestorage.app", messagingSenderId: "321777356764", appId: "1:321777356764:web:7ea129a40de01a4cc5c919" };
-        const APP_ID = 'itex-v4-mcq-fixed';
+        const APP_ID = 'itex-v5-fixed-map-err';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -328,11 +252,14 @@
             let contentHtml = `<textarea class="input-field mb-2 font-medium text-gray-800 h-24 q-content-text" placeholder="Nội dung câu hỏi">${qData.content}</textarea>`;
             
             if(qData.type === 'mcq') {
-                ansHtml = `<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">${Object.entries(qData.options).map(([k,v]) => `<div class="flex"><span class="font-bold w-6 pt-2">${k}.</span><input type="text" class="input-field q-opt-${k}" value="${v}"></div>`).join('')}</div><label class="text-sm font-bold">Đáp án đúng:</label><select class="input-field mt-1 q-ans-mcq">${['A','B','C','D'].map(x => `<option value="${x}" ${qData.answer===x?'selected':''}>${x}</option>`).join('')}</select>`;
+                const opts = qData.options || {A:"", B:"", C:"", D:""};
+                ansHtml = `<div class="grid grid-cols-1 md:grid-cols-2 gap-2 mb-2">${Object.entries(opts).map(([k,v]) => `<div class="flex"><span class="font-bold w-6 pt-2">${k}.</span><input type="text" class="input-field q-opt-${k}" value="${v}"></div>`).join('')}</div><label class="text-sm font-bold">Đáp án đúng:</label><select class="input-field mt-1 q-ans-mcq">${['A','B','C','D'].map(x => `<option value="${x}" ${qData.answer===x?'selected':''}>${x}</option>`).join('')}</select>`;
             } else if (qData.type === 'short_answer') {
                 ansHtml = `<label class="text-sm font-bold">Đáp án:</label><input type="text" class="input-field mt-1 q-ans-sa" value="${qData.answer}">`;
             } else if (qData.type === 'true_false') {
-                 ansHtml = `<div class="grid grid-cols-1 gap-2 mb-2">${qData.options.map((opt, i) => `<div class="flex items-center gap-2"><span class="font-bold w-8">Ý ${['a','b','c','d'][i]}</span><input type="text" class="input-field q-tf-opt-${i}" value="${opt}"><select class="input-field w-24 q-ans-tf"><option value="Đ" ${qData.answers[i]==='Đ'?'selected':''}>Đúng</option><option value="S" ${qData.answers[i]==='S'?'selected':''}>Sai</option></select></div>`).join('')}</div>`;
+                 // --- SỬA LỖI MAP Ở ĐÂY: Thêm fallback || [] ---
+                 const tfOpts = qData.options || ['Ý 1', 'Ý 2', 'Ý 3', 'Ý 4'];
+                 ansHtml = `<div class="grid grid-cols-1 gap-2 mb-2">${tfOpts.map((opt, i) => `<div class="flex items-center gap-2"><span class="font-bold w-8">Ý ${['a','b','c','d'][i]}</span><input type="text" class="input-field q-tf-opt-${i}" value="${opt}"><select class="input-field w-24 q-ans-tf"><option value="Đ" ${(qData.answers && qData.answers[i]==='Đ')?'selected':''}>Đúng</option><option value="S" ${(qData.answers && qData.answers[i]==='S')?'selected':''}>Sai</option></select></div>`).join('')}</div>`;
             }
 
             div.innerHTML = `<div class="absolute top-4 right-4"><button onclick="this.closest('.card').remove()" class="text-red-500 font-bold">✕</button></div><button onclick="editQuestionWithAI(this, ${idx})" class="absolute top-4 right-16 text-indigo-600 font-bold text-sm border border-indigo-200 bg-indigo-50 px-2 py-1 rounded">✨ Sửa bằng AI</button><h4 class="font-bold text-gray-700 mb-2">Câu hỏi ${idx + 1} (${qData.type})</h4><div class="mb-4"><input type="hidden" class="q-type" value="${qData.type}"><input type="hidden" class="q-img-base64-hidden" value="">${contentHtml}<textarea class="input-field text-sm text-gray-500 mt-2 h-16 q-explanation" placeholder="Giải thích">${qData.explanation || ''}</textarea></div><div class="bg-gray-50 p-3 rounded border">${ansHtml}</div>`;
@@ -478,7 +405,6 @@
                     let input = '';
                     
                     if(q.type === 'mcq') {
-                        // NEW MCQ UI: Clickable Rows
                         const keys = ['A','B','C','D'];
                         input = `<div class="flex flex-col gap-2">
                             ${keys.map(key => {
@@ -512,15 +438,8 @@
         }
 
         window.selectOpt = (i, o) => {
-            // Remove 'selected' class from all options in this question
-            ['A','B','C','D'].forEach(k => {
-                const el = document.getElementById(`opt-row-${i}-${k}`);
-                if(el) el.classList.remove('selected');
-            });
-            // Add 'selected' to clicked option
-            const clicked = document.getElementById(`opt-row-${i}-${o}`);
-            if(clicked) clicked.classList.add('selected');
-            // Set hidden value
+            ['A','B','C','D'].forEach(k => { const el = document.getElementById(`opt-row-${i}-${k}`); if(el) el.classList.remove('selected'); });
+            const clicked = document.getElementById(`opt-row-${i}-${o}`); if(clicked) clicked.classList.add('selected');
             document.getElementById(`ans-${i}`).value = o;
         }
 
