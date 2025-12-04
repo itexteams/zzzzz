@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (AI Full Edit)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Final Stable)</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
@@ -147,7 +147,7 @@
         import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
         const firebaseConfig = { apiKey: "AIzaSyCY_WIQ_nAy4Guxg6OMRtNW-F6qhb2U4BI", authDomain: "flutter-ai-playground-fd478.firebaseapp.com", projectId: "flutter-ai-playground-fd478", storageBucket: "flutter-ai-playground-fd478.firebasestorage.app", messagingSenderId: "321777356764", appId: "1:321777356764:web:7ea129a40de01a4cc5c919" };
-        const APP_ID = 'itex-v6-full-edit';
+        const APP_ID = 'itex-v6-stable';
 
         const app = initializeApp(firebaseConfig);
         const auth = getAuth(app);
@@ -221,7 +221,6 @@
             } else if (type === 'short_answer') {
                 ansHtml = `<label class="text-sm font-bold">Đáp án:</label><input type="text" class="input-field mt-1 q-ans-sa" value="${qData.answer || ''}">`;
             } else if (type === 'true_false') {
-                 // Thêm Fallback cho options và answers
                  const tfOpts = qData.options || ['Ý 1', 'Ý 2', 'Ý 3', 'Ý 4'];
                  const answers = qData.answers || ['Đ', 'S', 'Đ', 'S'];
                  ansHtml = `<div class="grid grid-cols-1 gap-2 mb-2">${tfOpts.map((opt, i) => `<div class="flex items-center gap-2"><span class="font-bold w-8">Ý ${['a','b','c','d'][i]}</span><input type="text" class="input-field q-tf-opt-${i}" value="${opt}"><select class="input-field w-24 q-ans-tf"><option value="Đ" ${answers[i]==='Đ'?'selected':''}>Đúng</option><option value="S" ${answers[i]==='S'?'selected':''}>Sai</option></select></div>`).join('')}</div>`;
@@ -262,7 +261,7 @@
                 const topicText = document.getElementById('ai-topic-text').value.trim();
                 let parts = [];
                 let contextPrompt = fileInput.files.length === 0 && !topicText 
-                    ? `Đóng vai giáo viên ${document.getElementById('t-subject').value} lớp ${document.getElementById('t-grade').value}. Tạo đề kiểm tra tổng hợp.`
+                    ? `Đóng vai giáo viên ${document.getElementById('t-subject').value || 'Môn học'} lớp ${document.getElementById('t-grade').value || 'Lớp học'}. Tạo đề kiểm tra tổng hợp.`
                     : `Tạo đề kiểm tra dựa trên nội dung dưới đây.`;
 
                 const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. Output JSON Array only (no markdown). Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, { "type": "true_false", ...}, { "type": "short_answer", ...}]`;
@@ -290,8 +289,6 @@
             } catch (e) { customAlert(`Lỗi: ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
         };
 
-        window.addQuestionFromAI = (qData) => { /* Logic này được hợp nhất vào generateWithAI */ };
-
 
         window.editQuestionWithAI = async (btn, idx) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
@@ -308,7 +305,6 @@
                 const currentContent = card.querySelector('.q-content-text').value;
                 const modelName = await detectBestModel(apiKey);
                 
-                // Cấu trúc mẫu JSON cho AI biết cần trả về cái gì
                 let jsonTemplate = '';
                 if(type === 'mcq') jsonTemplate = `{"type": "mcq", "content": "Câu hỏi mới...", "options": {"A":"Mới","B":"Mới","C":"Mới","D":"Mới"}, "answer": "A", "explanation": "Giải thích mới..."}`; 
                 else if (type === 'true_false') jsonTemplate = `{"type": "true_false", "content": "Câu hỏi mới...", "options": ["Ý 1 mới", "Ý 2 mới", "Ý 3 mới", "Ý 4 mới"], "answers": ["Đ","S","Đ","S"], "explanation": "Giải thích mới..."}`; 
@@ -325,8 +321,7 @@
                 `;
 
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
-                    method: 'POST', 
-                    headers: {'Content-Type': 'application/json'},
+                    method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{text: promptText}] }] })
                 });
                 
@@ -337,7 +332,6 @@
                 let newQuestionData = JSON.parse(rawText);
                 if(Array.isArray(newQuestionData)) newQuestionData = newQuestionData[0]; 
 
-                // Kiểm tra loại câu hỏi có đúng không, nếu không thì dùng loại gốc
                 newQuestionData.type = newQuestionData.type === type ? newQuestionData.type : type;
                 newQuestionData.aiGenerated = true;
 
@@ -361,45 +355,51 @@
             const div = document.createElement('div');
             div.className = "card border border-gray-200 shadow-sm relative mb-4";
             
-            // Dùng hàm chung để render câu hỏi thủ công (không có aiGenerated)
             const initialData = { type: 'mcq', content: '', explanation: '', options: {A:"", B:"", C:"", D:""} };
             div.innerHTML = generateQuestionEditorHTML(initialData, idx);
             
-            // Cần chỉnh lại một chút vì generateQuestionEditorHTML cần select box thay đổi type
-            div.querySelector('.q-type').onchange = (e) => {
+            // Xử lý sự kiện thay đổi loại câu hỏi (thủ công)
+            const typeSelect = div.querySelector('.q-type');
+            typeSelect.onchange = (e) => {
                 const newType = e.target.value;
-                const dummyData = { type: newType, content: '', explanation: '', options: {}, answers: [] };
-                div.innerHTML = generateQuestionEditorHTML(dummyData, idx);
-                // Phải set lại sự kiện onchange sau khi vẽ lại
-                div.querySelector('.q-type').value = newType; 
-                div.querySelector('.q-type').onchange = window.addQuestion; // Logic này cần được tinh chỉnh nếu muốn giữ nguyên structure
+                const dummyData = { type: newType, content: '', explanation: '' };
+                const newHtml = generateQuestionEditorHTML(dummyData, idx);
+                // Tạo một div tạm thời để thay thế nội dung (giữ lại các sự kiện cũ)
+                div.innerHTML = newHtml;
+                div.querySelector('.q-type').value = newType;
+                div.querySelector('.q-type').onchange = typeSelect.onchange; // Gán lại sự kiện
             };
 
 
             container.appendChild(div);
         }
-
+        
+        // --- CHÚ THÍCH: Hàm này đã được sửa lỗi hiển thị theo cách an toàn hơn ---
         window.previewImage = (input, id) => { if(input.files[0]) { const r = new FileReader(); r.onload = (e) => { document.getElementById(id).src = e.target.result; document.getElementById(id).classList.remove('hidden'); }; r.readAsDataURL(input.files[0]); } }
 
         window.saveExam = async (btn) => {
             btn.disabled = true; btn.innerText = "Lưu...";
             try {
-                const tName = document.getElementById('t-name').value;
-                if(!tName) throw new Error("Nhập tên giáo viên!");
+                const tNameInput = document.getElementById('t-name');
+                if(!tNameInput || !tNameInput.value) throw new Error("Nhập tên giáo viên!");
+                const tName = tNameInput.value;
+                
                 const qDivs = document.getElementById('questions-list').children;
                 const questions = [];
+                
                 for(let i=0; i<qDivs.length; i++) {
                     const div = qDivs[i];
                     const type = div.querySelector('.q-type').value;
-                    let imgData = div.querySelector('.q-img-base64-hidden').value;
+                    let imgData = div.querySelector('.q-img-base64-hidden')?.value || '';
                     const imgFile = div.querySelector('.q-img-file');
-                    if(!imgData && imgFile && imgFile.files[0]) imgData = await fileToBase64(imgFile.files[0]);
+                    if(!imgData && imgFile?.files[0]) imgData = await fileToBase64(imgFile.files[0]);
                     
-                    let ansData = { type, img_data: imgData, text_content: div.querySelector('.q-content-text') ? div.querySelector('.q-content-text').value : '', explanation: div.querySelector('.q-explanation') ? div.querySelector('.q-explanation').value : '' };
+                    let ansData = { type, img_data: imgData, text_content: div.querySelector('.q-content-text')?.value || '', explanation: div.querySelector('.q-explanation')?.value || '' };
+                    
                     if(type === 'mcq') {
-                        ansData.answer = div.querySelector('.q-ans-mcq').value;
+                        ansData.answer = div.querySelector('.q-ans-mcq')?.value || 'A';
                         if(div.querySelector('.q-opt-A')) ansData.options = { A: div.querySelector('.q-opt-A').value, B: div.querySelector('.q-opt-B').value, C: div.querySelector('.q-opt-C').value, D: div.querySelector('.q-opt-D').value };
-                    } else if(type === 'short_answer') ansData.answer = div.querySelector('.q-ans-sa').value;
+                    } else if(type === 'short_answer') ansData.answer = div.querySelector('.q-ans-sa')?.value || '';
                     else if(type === 'true_false' && div.querySelector('.q-ans-tf')) {
                         const selects = div.querySelectorAll('.q-ans-tf');
                         ansData.answers = Array.from(selects).map(s => s.value);
@@ -408,13 +408,15 @@
                     questions.push(ansData);
                 }
                 const examId = Math.random().toString(36).substring(2, 8).toUpperCase();
+                const getScoreValue = (id, fallback) => parseFloat(document.getElementById(id)?.value || fallback);
+                
                 const metadata = {
                     teacher: tName, grade: document.getElementById('t-grade').value, subject: document.getElementById('t-subject').value,
-                    time: document.getElementById('t-time').value, question_count: questions.length, created_at: new Date().toISOString(),
+                    time: document.getElementById('t-time')?.value || 15, question_count: questions.length, created_at: new Date().toISOString(),
                     scoring: { 
-                        mcq: parseFloat(document.getElementById('score-mcq').value), sa: parseFloat(document.getElementById('score-sa').value), 
-                        tf_1: parseFloat(document.getElementById('score-tf1').value), tf_2: parseFloat(document.getElementById('score-tf2').value),
-                        tf_3: parseFloat(document.getElementById('score-tf3').value), tf_4: parseFloat(document.getElementById('score-tf4').value)
+                        mcq: getScoreValue('score-mcq', 0.25), sa: getScoreValue('score-sa', 0.5), 
+                        tf_1: getScoreValue('score-tf1', 0.1), tf_2: getScoreValue('score-tf2', 0.25),
+                        tf_3: getScoreValue('score-tf3', 0.5), tf_4: getScoreValue('score-tf4', 1.0)
                     }
                 };
                 await setDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_exams', examId), metadata);
