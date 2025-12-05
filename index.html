@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Fix JSON Final)</title>
+    <title>iTeX - Math Latex Perfect Render</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -32,6 +32,9 @@
         
         .fade-in { animation: fadeIn 0.4s ease-out; }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+        
+        /* Math Formula Font Adjustment */
+        .katex { font-size: 1.1em; }
         
         .score-circle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; font-size: 10px; font-weight: bold; color: white; flex-shrink: 0; margin: 2px; }
     </style>
@@ -203,17 +206,34 @@
             }
         });
 
+        // ==========================================
+        //  RENDER LATEX (Cập nhật để hiển thị tốt)
+        // ==========================================
         function renderLaTeX(element = document.body) {
             if (!window.renderMathInElement) return;
+            // Tiền xử lý: Thêm \displaystyle vào các công thức $...$ để hiển thị to rõ
             const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
             let node;
             while (node = walker.nextNode()) {
                 let text = node.nodeValue;
-                if (text.includes("\\frac")) text = text.replace(/\\frac/g, "\\dfrac");
-                text = text.replace(/\$(.+?)\$/g, (m, inner) => !inner.trim().startsWith("\\displaystyle") ? `$\\displaystyle ${inner}$` : m);
+                // Nếu tìm thấy công thức $...$ mà chưa có \displaystyle thì thêm vào
+                // Tránh thêm vào nếu đã có sẵn
+                text = text.replace(/\$(.+?)\$/g, (m, inner) => {
+                    if (inner.includes("\\displaystyle")) return m;
+                    return `$\\displaystyle ${inner}$`;
+                });
                 node.nodeValue = text;
             }
-            renderMathInElement(element, { delimiters: [{ left: '$$', right: '$$', display: true }, { left: '\\[', right: '\\]', display: true }, { left: '$', right: '$', display: false }, { left: '\\(', right: '\\)', display: false }], throwOnError: false });
+            // Gọi KaTeX Render
+            renderMathInElement(element, { 
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false }
+                ], 
+                throwOnError: false 
+            });
         }
         document.addEventListener('DOMContentLoaded', () => { renderLaTeX(document.body); });
         
@@ -239,58 +259,29 @@
         }
 
         // ==========================================
-        //  HÀM XỬ LÝ JSON SIÊU MẠNH (ULTIMATE FIX)
+        //  HÀM XỬ LÝ JSON SIÊU MẠNH (Giữ nguyên)
         // ==========================================
         function cleanAndParseJSON(text) {
-            // Bước 1: Loại bỏ Markdown wrapper
             let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
-
             try {
-                // Thử parse ngay nếu AI "ngoan"
                 return JSON.parse(clean);
             } catch (e1) {
                 console.warn("Lỗi JSON lần 1, đang xử lý mạnh tay...");
-                
-                // Bước 2: Bruteforce Escape Backslashes
-                // Thay vì regex phức tạp, ta sẽ quét từng ký tự
-                // Logic: Tìm tất cả dấu '\', nếu ký tự sau nó KHÔNG PHẢI là ký tự đặc biệt của JSON (" \ / b f n r t u)
-                // thì ta thêm một dấu '\' nữa vào.
                 let fixed = "";
                 for (let i = 0; i < clean.length; i++) {
                     if (clean[i] === '\\') {
-                        // Kiểm tra ký tự tiếp theo
                         let nextChar = clean[i + 1];
-                        // Danh sách ký tự escape hợp lệ trong JSON
                         const validEscapes = ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'];
-                        
-                        if (validEscapes.includes(nextChar)) {
-                            // Đây là escape hợp lệ (ví dụ: \n, \"), giữ nguyên
-                            fixed += clean[i]; 
-                        } else {
-                            // Đây là lỗi (ví dụ: \frac, \Delta), cần double escape -> \\
-                            fixed += "\\\\";
-                        }
-                    } else {
-                        fixed += clean[i];
-                    }
+                        if (validEscapes.includes(nextChar)) { fixed += clean[i]; } 
+                        else { fixed += "\\\\"; } // Double escape cho LaTeX
+                    } else { fixed += clean[i]; }
                 }
-
-                try {
-                    return JSON.parse(fixed);
-                } catch (e2) {
-                    console.warn("Lỗi JSON lần 2 (vẫn lỗi), thử biện pháp cuối cùng...");
-                    
-                    // Bước 3: Last Resort - Xử lý trường hợp AI trả về text thuần thay vì JSON
-                    // Nếu AI quên format JSON mà trả về text kiểu "Dưới đây là câu hỏi..."
-                    // Ta tìm cặp ngoặc vuông [] đầu tiên và cuối cùng
-                    const start = fixed.indexOf('[');
-                    const end = fixed.lastIndexOf(']');
+                try { return JSON.parse(fixed); } 
+                catch (e2) {
+                    console.warn("Lỗi JSON lần 2, thử biện pháp cuối...");
+                    const start = fixed.indexOf('['); const end = fixed.lastIndexOf(']');
                     if (start !== -1 && end !== -1) {
-                        try {
-                            return JSON.parse(fixed.substring(start, end + 1));
-                        } catch (e3) {
-                             throw new Error("Không thể đọc dữ liệu từ AI. Hãy thử lại!");
-                        }
+                        try { return JSON.parse(fixed.substring(start, end + 1)); } catch (e3) { throw new Error("Không thể đọc dữ liệu từ AI."); }
                     }
                     throw e2;
                 }
@@ -333,6 +324,9 @@
             `;
         }
         
+        // ==========================================
+        //  AI GENERATION (UPDATE PROMPT CHO LATEX)
+        // ==========================================
         window.generateWithAI = async (btn) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
             if (!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
@@ -350,7 +344,13 @@
                 let parts = [];
                 let contextPrompt = fileInput.files.length === 0 && !topicText ? `Đóng vai giáo viên. Tạo đề kiểm tra.` : `Tạo đề kiểm tra dựa trên nội dung dưới đây.`;
 
+                // CẬP NHẬT PROMPT: Ép buộc dùng dấu $ cho công thức
                 const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. 
+                
+                QUY TẮC LATEX (BẮT BUỘC):
+                1. Tất cả công thức toán, biến số (x, y), phân số phải được bao quanh bởi dấu $ (Ví dụ: $x^2$, $\\frac{1}{2}$).
+                2. Không viết công thức trần.
+                
                 Output JSON Array only. Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, ...]`;
                 
                 parts.push({text: promptText});
@@ -364,7 +364,7 @@
                 if (data.error) throw new Error(data.error.message);
                 
                 let rawText = data.candidates[0].content.parts[0].text;
-                const questions = cleanAndParseJSON(rawText); // SỬ DỤNG HÀM PARSE MỚI
+                const questions = cleanAndParseJSON(rawText);
 
                 questions.forEach((q) => {
                     const container = document.getElementById('questions-list');
@@ -374,7 +374,7 @@
                     q.aiGenerated = true;
                     div.innerHTML = generateQuestionEditorHTML(q, idx);
                     container.appendChild(div);
-                    renderLaTeX(div);
+                    renderLaTeX(div); // Render lại LaTeX ngay khi thêm
                 });
                 customAlert(`Đã tạo ${questions.length} câu hỏi!`);
             } catch (e) { console.error(e); customAlert(`Lỗi (Do AI sinh JSON sai định dạng LaTeX): ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
@@ -392,7 +392,11 @@
             try {
                 const currentContent = card.querySelector('.q-content-text').value;
                 const modelName = await detectBestModel(apiKey);
-                const promptText = `Bạn là trợ lý giáo viên. Sửa câu hỏi sau: "${newInstruction}". Loại câu: ${type}. Nội dung cũ: ${currentContent}. Chỉ trả về MỘT JSON Object duy nhất.`;
+                
+                // CẬP NHẬT PROMPT EDIT: Ép buộc dùng dấu $
+                const promptText = `Bạn là trợ lý giáo viên. Sửa câu hỏi sau: "${newInstruction}". 
+                LƯU Ý: Dùng chuẩn LaTeX và BAO QUANH CÔNG THỨC BẰNG DẤU $ (Ví dụ: $x^2$).
+                Loại câu: ${type}. Nội dung cũ: ${currentContent}. Chỉ trả về MỘT JSON Object duy nhất.`;
 
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -403,7 +407,7 @@
                 if(data.error) throw new Error(data.error.message);
                 
                 let rawText = data.candidates[0].content.parts[0].text;
-                let newQuestionData = cleanAndParseJSON(rawText); // SỬ DỤNG HÀM PARSE MỚI
+                let newQuestionData = cleanAndParseJSON(rawText);
 
                 if(Array.isArray(newQuestionData)) newQuestionData = newQuestionData[0]; 
 
