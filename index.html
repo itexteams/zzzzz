@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Fix JSON Error)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Fix Submit Violation)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -192,6 +192,7 @@
         let examTimer = null;
         let detectedModelName = null;
         let violationCount = 0;
+        let isSubmitting = false; // NEW FLAG: Đánh dấu đang nộp bài để tắt chống gian lận
 
         signInAnonymously(auth);
         onAuthStateChanged(auth, (user) => {
@@ -273,7 +274,6 @@
             `;
         }
         
-        // --- 1. AI GENERATION & EDITING (FIXED JSON PARSE ERROR) ---
         window.generateWithAI = async (btn) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
             if (!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
@@ -291,9 +291,8 @@
                 let parts = [];
                 let contextPrompt = fileInput.files.length === 0 && !topicText ? `Đóng vai giáo viên. Tạo đề kiểm tra.` : `Tạo đề kiểm tra dựa trên nội dung dưới đây.`;
 
-                // PROMPT UPDATE: Yêu cầu AI escape backslash kỹ hơn
                 const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. 
-                Sử dụng chuẩn LaTeX (LƯU Ý QUAN TRỌNG: Các dấu gạch chéo của LaTeX phải được escape 2 lần, ví dụ dùng \\\\frac thay vì \\frac, dùng \\\\Delta thay vì \\Delta). 
+                Sử dụng chuẩn LaTeX (LƯU Ý QUAN TRỌNG: Các dấu gạch chéo của LaTeX phải được escape 2 lần, ví dụ dùng \\\\frac thay vì \\frac). 
                 Output JSON Array only. Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, ...]`;
                 
                 parts.push({text: promptText});
@@ -306,10 +305,8 @@
                 const data = await res.json();
                 if (data.error) throw new Error(data.error.message);
                 
-                // DATA CLEANING: Tự động sửa lỗi backslash nếu AI quên escape
                 let rawText = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
-                // Regex tìm dấu \ mà phía sau KHÔNG phải là ký tự escape hợp lệ của JSON (" \ / b f n r t u) -> Thêm dấu \ nữa
-                rawText = rawText.replace(/\\([^\/\\bfnrtu"])/g, "\\\\$1");
+                rawText = rawText.replace(/\\([^\/\\bfnrtu"])/g, "\\\\$1"); // Clean JSON
 
                 const questions = JSON.parse(rawText);
                 questions.forEach((q) => {
@@ -338,12 +335,7 @@
             try {
                 const currentContent = card.querySelector('.q-content-text').value;
                 const modelName = await detectBestModel(apiKey);
-                let jsonTemplate = type === 'mcq' ? `{"type": "mcq", ...}` : (type === 'true_false' ? `{"type": "true_false", ...}` : `{"type": "short_answer", ...}`);
-                
-                const promptText = `Bạn là trợ lý giáo viên. Sửa câu hỏi sau: "${newInstruction}". 
-                LƯU Ý: Dùng LaTeX chuẩn JSON (Ví dụ: \\\\frac thay vì \\frac).
-                Loại câu: ${type}. Nội dung cũ: ${currentContent}.
-                Chỉ trả về MỘT JSON Object duy nhất.`;
+                const promptText = `Bạn là trợ lý giáo viên. Sửa câu hỏi sau: "${newInstruction}". LƯU Ý: Dùng LaTeX chuẩn JSON (Ví dụ: \\\\frac thay vì \\frac). Loại câu: ${type}. Nội dung cũ: ${currentContent}. Chỉ trả về MỘT JSON Object duy nhất.`;
 
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
@@ -354,7 +346,6 @@
                 if(data.error) throw new Error(data.error.message);
                 
                 let rawText = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
-                // Fix bad escaped character
                 rawText = rawText.replace(/\\([^\/\\bfnrtu"])/g, "\\\\$1");
 
                 let newQuestionData = JSON.parse(rawText);
@@ -495,15 +486,26 @@
         }
 
         window.setupAntiCheat = () => {
-            violationCount = 0; const warn = (msg) => { violationCount++; document.getElementById('violation-display').innerHTML = `Vi phạm: <b class="text-red-600">${violationCount}/3</b>`; if(violationCount<3) alert(`⚠️ CẢNH BÁO GIAN LẬN (${violationCount}/3): ${msg}`); else { alert("🚫 VI PHẠM QUÁ MỨC. NỘP BÀI!"); submitExam(true); } };
-            document.addEventListener("visibilitychange", () => { if(document.hidden) warn("Rời màn hình"); });
-            document.addEventListener("fullscreenchange", () => { if(!document.fullscreenElement && !document.getElementById('taking-exam').classList.contains('hidden')) warn("Thoát toàn màn hình"); });
+            violationCount = 0;
+            const warn = (msg) => {
+                if(isSubmitting) return; // FIXED: Không ghi nhận lỗi nếu đang nộp bài
+                violationCount++;
+                document.getElementById('violation-display').innerHTML = `Vi phạm: <b class="text-red-600">${violationCount}/3</b>`;
+                if(violationCount<3) alert(`⚠️ CẢNH BÁO GIAN LẬN (${violationCount}/3): ${msg}`);
+                else { alert("🚫 VI PHẠM QUÁ MỨC. NỘP BÀI!"); submitExam(true); }
+            };
+            document.addEventListener("visibilitychange", () => { if(isSubmitting) return; if(document.hidden) warn("Rời màn hình"); });
+            document.addEventListener("fullscreenchange", () => { 
+                if(isSubmitting) return; // FIXED: Không ghi nhận lỗi nếu đang nộp bài
+                if(!document.fullscreenElement && !document.getElementById('taking-exam').classList.contains('hidden')) warn("Thoát toàn màn hình"); 
+            });
             document.addEventListener("contextmenu", e => e.preventDefault()); document.addEventListener("copy", e => e.preventDefault());
             document.onkeydown = e => { if(e.keyCode==123 || (e.ctrlKey && e.shiftKey && (e.keyCode==73 || e.keyCode==67))) return false; };
         };
 
         window.startExam = async (e) => {
             const name = document.getElementById('s-name').value.trim(); if(!name) return customAlert("Nhập tên!");
+            isSubmitting = false; // Reset trạng thái nộp bài
             try { if(document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch(err){}
             e.target.innerText = "Đang tải đề...";
             try {
@@ -538,8 +540,15 @@
         window.selectOpt = (i, o) => { ['A','B','C','D'].forEach(k => document.getElementById(`opt-row-${i}-${k}`)?.classList.remove('selected')); document.getElementById(`opt-row-${i}-${o}`)?.classList.add('selected'); document.getElementById(`ans-${i}`).value = o; }
 
         window.submitExam = async (force = false) => {
-             if (!force) { const msg = `Bạn có chắc chắn muốn nộp bài?\n\n⚠️ Số lỗi vi phạm ghi nhận: ${violationCount}`; if (!confirm(msg)) return; }
-             clearInterval(examTimer); if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch(e) {} }
+             if (!force) { 
+                 const msg = `Bạn có chắc chắn muốn nộp bài?\n\n⚠️ Số lỗi vi phạm ghi nhận: ${violationCount}`; 
+                 if (!confirm(msg)) return; 
+             }
+             isSubmitting = true; // Set flag to prevent anti-cheat triggers
+
+             clearInterval(examTimer); 
+             if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch(e) {} }
+             
              document.getElementById('btn-submit').disabled = true; document.getElementById('btn-submit').innerText = "Đang chấm...";
              
              let score = 0, detailedReportHtml = '', studentAnswersData = [];
