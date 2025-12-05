@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Media Support)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Full Media Support)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -315,13 +315,18 @@
         }
 
         // --- Hàm tạo HTML cho Editor (Dùng chung cho Add và Edit) ---
+        // CẬP NHẬT: Luôn hiển thị input chọn ảnh cho câu hỏi
         function generateQuestionEditorHTML(qData, idx) {
             const type = qData.type;
-            const isAi = qData.aiGenerated || false;
+            // const isAi = qData.aiGenerated || false; // Không cần biến này nữa để ẩn hiện ảnh
 
             let ansHtml = '';
-            let contentHtml = `<textarea class="input-field mb-2 font-medium text-gray-800 h-24 q-content-text" placeholder="Nội dung câu hỏi">${qData.content || ''}</textarea>`;
+            // Phần nhập nội dung văn bản
+            let contentHtml = `<div><label class="block text-xs font-bold mb-1">Nội dung Câu hỏi (Văn bản)</label><textarea class="input-field mb-2 font-medium text-gray-800 h-24 q-content-text" placeholder="Nhập nội dung câu hỏi ở đây...">${qData.content || ''}</textarea></div>`;
             
+            // Phần nhập ảnh câu hỏi (LUÔN HIỆN)
+            const imgInputHtml = `<div><label class="block text-xs font-bold mb-1">Ảnh Câu hỏi (Tùy chọn)</label><input type="file" accept="image/*" class="text-sm q-img-file" onchange="previewImage(this, 'preview-q-${idx}')"><input type="hidden" class="q-img-base64-hidden" value="${qData.img_data || ''}"><img id="preview-q-${idx}" src="${qData.img_data ? 'data:image/png;base64,'+qData.img_data : ''}" class="mt-2 h-20 object-contain border ${qData.img_data ? '' : 'hidden'}"></div>`;
+
             if(type === 'mcq') {
                 const opts = qData.options || {A:"", B:"", C:"", D:""};
                 const answer = qData.answer || 'A';
@@ -333,10 +338,6 @@
                  const answers = qData.answers || ['Đ', 'S', 'Đ', 'S'];
                  ansHtml = `<div class="grid grid-cols-1 gap-2 mb-2">${tfOpts.map((opt, i) => `<div class="flex items-center gap-2"><span class="font-bold w-8">Ý ${['a','b','c','d'][i]}</span><input type="text" class="input-field q-tf-opt-${i}" value="${opt}"><select class="input-field w-24 q-ans-tf"><option value="Đ" ${answers[i]==='Đ'?'selected':''}>Đúng</option><option value="S" ${answers[i]==='S'?'selected':''}>Sai</option></select></div>`).join('')}</div>`;
             }
-
-            const isManual = !isAi;
-            const imgInputHtml = isManual ? `<div><label class="block text-xs font-bold mb-1">Ảnh Câu hỏi (Tùy chọn)</label><input type="file" accept="image/*" class="text-sm q-img-file" onchange="previewImage(this, 'preview-q-${idx}')"><input type="hidden" class="q-img-base64-hidden" value=""><img id="preview-q-${idx}" class="mt-2 h-20 object-contain hidden border"></div>` : `<input type="hidden" class="q-img-base64-hidden" value="">`;
-            const contentInputHtml = isManual ? `<div><label class="block text-xs font-bold mb-1">Hoặc Văn bản</label>${contentHtml}</div>` : contentHtml;
             
             return `
                 <div class="absolute top-4 right-4"><button onclick="this.closest('.card').remove()" class="text-red-500 font-bold">✕</button></div>
@@ -344,7 +345,11 @@
                 <h4 class="font-bold text-gray-700 mb-2">Câu hỏi ${idx + 1} (${type})</h4>
                 <div class="mb-4">
                     <input type="hidden" class="q-type" value="${type}">
-                    ${isManual ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">${imgInputHtml} ${contentInputHtml}</div>` : contentInputHtml}
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        ${imgInputHtml}
+                        ${contentHtml}
+                    </div>
                     
                     <div class="mt-2 border-t pt-2 bg-gray-50 p-2 rounded">
                         <label class="block text-xs font-bold mb-1 text-gray-600">Giải thích / Lời giải chi tiết:</label>
@@ -353,9 +358,9 @@
                         <div class="mt-2 flex items-center gap-2">
                             <label class="text-xs font-bold text-indigo-600 cursor-pointer">📷 Thêm ảnh lời giải:</label>
                             <input type="file" accept="image/*" class="text-xs q-expl-img-file" onchange="previewImage(this, 'preview-expl-${idx}')">
-                            <input type="hidden" class="q-expl-img-base64-hidden" value="">
+                            <input type="hidden" class="q-expl-img-base64-hidden" value="${qData.explanation_img_data || ''}">
                         </div>
-                        <img id="preview-expl-${idx}" class="mt-2 h-24 object-contain hidden border bg-white rounded">
+                        <img id="preview-expl-${idx}" src="${qData.explanation_img_data ? 'data:image/png;base64,'+qData.explanation_img_data : ''}" class="mt-2 h-24 object-contain border bg-white rounded ${qData.explanation_img_data ? '' : 'hidden'}">
                     </div>
 
                 </div>
@@ -455,6 +460,10 @@
                 newQuestionData.type = newQuestionData.type === type ? newQuestionData.type : type;
                 newQuestionData.aiGenerated = true;
 
+                // Giữ lại ảnh cũ nếu có (vì AI chỉ sửa text)
+                newQuestionData.img_data = card.querySelector('.q-img-base64-hidden').value;
+                newQuestionData.explanation_img_data = card.querySelector('.q-expl-img-base64-hidden').value;
+
                 // CẬP NHẬT UI BẰNG CÁCH VẼ LẠI TOÀN BỘ CARD
                 card.innerHTML = generateQuestionEditorHTML(newQuestionData, idx); 
                 renderLaTeX(card); // Render LaTeX cho thẻ vừa sửa
@@ -488,6 +497,8 @@
                 // Lấy lại nội dung hiện tại trước khi re-render
                 dummyData.content = div.querySelector('.q-content-text')?.value || '';
                 dummyData.explanation = div.querySelector('.q-explanation')?.value || '';
+                dummyData.img_data = div.querySelector('.q-img-base64-hidden')?.value || '';
+                dummyData.explanation_img_data = div.querySelector('.q-expl-img-base64-hidden')?.value || '';
                 
                 // Re-render the inner HTML with the new type's structure
                 const currentIdx = Array.from(container.children).indexOf(div);
@@ -500,7 +511,20 @@
             container.appendChild(div);
         }
 
-        window.previewImage = (input, id) => { if(input.files[0]) { const r = new FileReader(); r.onload = (e) => { document.getElementById(id).src = e.target.result; document.getElementById(id).classList.remove('hidden'); }; r.readAsDataURL(input.files[0]); } }
+        window.previewImage = (input, id) => { 
+            if(input.files[0]) { 
+                const r = new FileReader(); 
+                r.onload = (e) => { 
+                    const img = document.getElementById(id);
+                    img.src = e.target.result; 
+                    img.classList.remove('hidden'); 
+                    // Cập nhật luôn vào hidden input để giữ trạng thái khi sửa
+                    const hiddenInput = input.parentElement.querySelector('input[type="hidden"]');
+                    if(hiddenInput) hiddenInput.value = e.target.result.split(',')[1];
+                }; 
+                r.readAsDataURL(input.files[0]); 
+            } 
+        }
 
         window.saveExam = async (btn) => {
             btn.disabled = true; btn.innerText = "Lưu...";
@@ -521,7 +545,7 @@
                     const imgFile = div.querySelector('.q-img-file');
                     if(!imgData && imgFile?.files[0]) imgData = await fileToBase64(imgFile.files[0]);
 
-                    // 2. Xử lý ảnh lời giải (MỚI)
+                    // 2. Xử lý ảnh lời giải
                     let explImgData = div.querySelector('.q-expl-img-base64-hidden')?.value || '';
                     const explImgFile = div.querySelector('.q-expl-img-file');
                     if(!explImgData && explImgFile?.files[0]) explImgData = await fileToBase64(explImgFile.files[0]);
@@ -529,7 +553,7 @@
                     let ansData = { 
                         type, 
                         img_data: imgData, 
-                        explanation_img_data: explImgData, // Lưu ảnh lời giải
+                        explanation_img_data: explImgData, 
                         text_content: div.querySelector('.q-content-text')?.value || '', 
                         explanation: div.querySelector('.q-explanation')?.value || '' 
                     };
@@ -878,28 +902,24 @@
                 // 2. RENDER THEO DANH SÁCH ĐÃ TRÁO
                 originalIndices.forEach((originalIndex, displayIndex) => {
                     const q = currentExamData.questions[originalIndex];
-                    let content = q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-64 mx-auto mb-4 border">` : `<div class="p-4 bg-blue-50 border-l-4 border-blue-500 mb-4">${marked.parse(q.text_content)}</div>`;
+                    
+                    // CẬP NHẬT: Hiển thị cả ảnh và text nếu có
+                    let imgHTML = q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-64 mx-auto mb-4 border rounded shadow-sm">` : '';
+                    let textHTML = q.text_content ? `<div class="p-4 bg-blue-50 border-l-4 border-blue-500 mb-4">${marked.parse(q.text_content)}</div>` : '';
+                    let content = `${imgHTML}${textHTML}`;
+
                     let input = '';
                     
                     if(q.type === 'mcq') {
                         // 3. TRÁO ĐỔI ĐÁP ÁN NHƯNG GIỮ NHÃN CỐ ĐỊNH (SHUFFLE OPTIONS, FIX LABELS)
-                        
-                        // Lọc các key hợp lệ (có nội dung)
                         let validKeys = ['A','B','C','D'].filter(k => q.options && q.options[k]);
-                        // Tráo đổi các key nội dung (ví dụ: ['C', 'A', 'D', 'B'])
                         let shuffledKeys = shuffleArray(validKeys);
-                        // Danh sách nhãn hiển thị cố định
                         const fixedLabels = ['A', 'B', 'C', 'D'];
 
                         input = `<div class="flex flex-col gap-2">
                             ${shuffledKeys.map((originalKey, idx) => {
-                                // originalKey là key chứa nội dung (ví dụ: 'C')
-                                // text là nội dung của 'C'
                                 const text = q.options[originalKey];
-                                // displayLabel là nhãn hiển thị dựa trên vị trí (ví dụ vị trí 0 là 'A')
                                 const displayLabel = fixedLabels[idx];
-
-                                // ID và onclick vẫn dùng originalKey để logic chấm điểm hoạt động đúng (vì đáp án đúng được lưu là 'C')
                                 return `<div id="opt-row-${originalIndex}-${originalKey}" onclick="selectOpt(${originalIndex},'${originalKey}')" class="mcq-option">
                                     <span class="mcq-label">${displayLabel}.</span>
                                     <span>${text}</span>
@@ -914,7 +934,6 @@
                     }
 
                     const div = document.createElement('div'); div.className = "card mb-8 border-t-4 border-indigo-500";
-                    // Hiển thị số câu theo thứ tự nhìn thấy (displayIndex + 1), nhưng logic dùng originalIndex
                     div.innerHTML = `<div class="flex justify-between mb-3"><h4 class="font-bold bg-gray-200 px-3 py-1 rounded-full">Câu ${displayIndex+1}</h4><span class="text-xs font-bold text-gray-400 uppercase">${q.type}</span></div>${content}${input}`;
                     container.appendChild(div);
                 });
@@ -1015,12 +1034,17 @@
                  const statusClass = isCorrect ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50';
                  const statusText = isCorrect ? 'ĐÚNG' : 'SAI';
 
+                 // CẬP NHẬT: Hiển thị cả ảnh và text trong báo cáo chi tiết
+                 let qImgHTML = q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-32 object-contain mb-2 border rounded">` : '';
+                 let qTextHTML = q.text_content ? `<div class="font-medium">${marked.parse(q.text_content)}</div>` : '';
+
                  detailedReportHtml += `
                      <div class="p-4 border-l-4 rounded ${statusClass}">
                          <h5 class="font-bold mb-2 text-lg text-gray-800">Câu ${i + 1} (Gốc): <span class="text-sm font-semibold">${statusText} (${isCorrect ? (sc.mcq||sc.sa||sc.tf_4).toFixed(2) : '0.00'} điểm)</span></h5>
                          
                          <div class="bg-white p-3 rounded shadow-sm text-sm">
-                             ${q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-32 object-contain mb-2">` : `<div class="font-medium">${marked.parse(q.text_content)}</div>`}
+                             ${qImgHTML}
+                             ${qTextHTML}
                              
                              <p class="mt-2"><strong>Đáp án của bạn:</strong> ${studentAnswerDisplay}</p>
                              <p class="mt-1 text-green-700"><strong>Đáp án đúng:</strong> ${correctAnswerDisplay}</p>
