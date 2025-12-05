@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Math Latex Perfect Render</title>
+    <title>iTeX - Advanced AI Exam Generator</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -29,9 +29,6 @@
         .mcq-option { border: 2px solid #e5e7eb; border-radius: 0.5rem; padding: 1rem; margin-bottom: 0.75rem; cursor: pointer; transition: all 0.2s ease; display: flex; align-items: flex-start; }
         .mcq-option.selected { background-color: #FEF08A; border-color: #EAB308; color: black; font-weight: 600; }
         .mcq-label { font-weight: bold; margin-right: 0.75rem; min-width: 25px; }
-        
-        .fade-in { animation: fadeIn 0.4s ease-out; }
-        @keyframes fadeIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
         
         /* Math Formula Font Adjustment */
         .katex { font-size: 1.1em; }
@@ -207,24 +204,20 @@
         });
 
         // ==========================================
-        //  RENDER LATEX (Cập nhật để hiển thị tốt)
+        //  RENDER LATEX
         // ==========================================
         function renderLaTeX(element = document.body) {
             if (!window.renderMathInElement) return;
-            // Tiền xử lý: Thêm \displaystyle vào các công thức $...$ để hiển thị to rõ
             const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
             let node;
             while (node = walker.nextNode()) {
                 let text = node.nodeValue;
-                // Nếu tìm thấy công thức $...$ mà chưa có \displaystyle thì thêm vào
-                // Tránh thêm vào nếu đã có sẵn
                 text = text.replace(/\$(.+?)\$/g, (m, inner) => {
                     if (inner.includes("\\displaystyle")) return m;
                     return `$\\displaystyle ${inner}$`;
                 });
                 node.nodeValue = text;
             }
-            // Gọi KaTeX Render
             renderMathInElement(element, { 
                 delimiters: [
                     { left: '$$', right: '$$', display: true },
@@ -259,7 +252,7 @@
         }
 
         // ==========================================
-        //  HÀM XỬ LÝ JSON SIÊU MẠNH (Giữ nguyên)
+        //  CLEAN JSON
         // ==========================================
         function cleanAndParseJSON(text) {
             let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
@@ -273,7 +266,7 @@
                         let nextChar = clean[i + 1];
                         const validEscapes = ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'];
                         if (validEscapes.includes(nextChar)) { fixed += clean[i]; } 
-                        else { fixed += "\\\\"; } // Double escape cho LaTeX
+                        else { fixed += "\\\\"; }
                     } else { fixed += clean[i]; }
                 }
                 try { return JSON.parse(fixed); } 
@@ -325,7 +318,7 @@
         }
         
         // ==========================================
-        //  AI GENERATION (UPDATE PROMPT CHO LATEX)
+        //  AI GENERATION (UPDATED REQUIREMENTS)
         // ==========================================
         window.generateWithAI = async (btn) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
@@ -336,20 +329,33 @@
             const numSa = parseInt(document.getElementById('ai-num-sa').value) || 0;
             if (numMcq + numTf + numSa === 0) return customAlert("Vui lòng chọn số lượng câu hỏi!");
 
+            // 1. Detect Subject
+            const subject = document.getElementById('t-subject').value;
+            const isEnglish = subject === 'Tiếng Anh';
+            const isSTEM = ['Toán', 'Vật lí', 'Hóa học', 'Sinh học'].includes(subject);
+
             btn.disabled = true; btn.innerHTML = "🔍 Đang tạo đề...";
             try {
                 const modelName = await detectBestModel(apiKey);
                 const fileInput = document.getElementById('ai-upload-file');
                 const topicText = document.getElementById('ai-topic-text').value.trim();
                 let parts = [];
-                let contextPrompt = fileInput.files.length === 0 && !topicText ? `Đóng vai giáo viên. Tạo đề kiểm tra.` : `Tạo đề kiểm tra dựa trên nội dung dưới đây.`;
+                let contextPrompt = fileInput.files.length === 0 && !topicText ? `Đóng vai giáo viên môn ${subject}. Tạo đề kiểm tra.` : `Tạo đề kiểm tra dựa trên nội dung dưới đây.`;
 
-                // CẬP NHẬT PROMPT: Ép buộc dùng dấu $ cho công thức
-                const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. 
+                // 2. Build Strict Rules
+                let strictRules = [];
+                strictRules.push(isEnglish ? "- BẮT BUỘC: Nội dung câu hỏi và đáp án phải viết hoàn toàn bằng TIẾNG ANH (English)." : "- Ngôn ngữ: Tiếng Việt.");
+                strictRules.push("- Với câu Đúng/Sai (true_false): BẮT BUỘC phải tạo đủ 4 mệnh đề (ý) con trong mảng 'options'.");
+                if (isSTEM) {
+                    strictRules.push("- Với câu Trả lời ngắn (short_answer) môn Toán/Lý/Hóa/Sinh: Đáp án BẮT BUỘC phải là SỐ THỰC (Real Number, ví dụ: 5, -2.5, 0.75), KHÔNG kèm đơn vị.");
+                }
+                strictRules.push("- Với công thức toán: Bắt buộc dùng LaTeX bao quanh bởi dấu $ (Ví dụ: $x^2$).");
+
+                const promptText = `${contextPrompt}
+                Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer).
                 
-                QUY TẮC LATEX (BẮT BUỘC):
-                1. Tất cả công thức toán, biến số (x, y), phân số phải được bao quanh bởi dấu $ (Ví dụ: $x^2$, $\\frac{1}{2}$).
-                2. Không viết công thức trần.
+                CÁC RÀNG BUỘC TUYỆT ĐỐI (STRICT RULES):
+                ${strictRules.join('\n')}
                 
                 Output JSON Array only. Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, ...]`;
                 
@@ -374,28 +380,40 @@
                     q.aiGenerated = true;
                     div.innerHTML = generateQuestionEditorHTML(q, idx);
                     container.appendChild(div);
-                    renderLaTeX(div); // Render lại LaTeX ngay khi thêm
+                    renderLaTeX(div);
                 });
                 customAlert(`Đã tạo ${questions.length} câu hỏi!`);
-            } catch (e) { console.error(e); customAlert(`Lỗi (Do AI sinh JSON sai định dạng LaTeX): ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
+            } catch (e) { console.error(e); customAlert(`Lỗi: ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
         };
 
+        // ==========================================
+        //  AI EDITING (UPDATED REQUIREMENTS)
+        // ==========================================
         window.editQuestionWithAI = async (btn, idx) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
             if (!apiKey) return customAlert("Cần API Key!");
             const card = btn.closest('.card');
             const type = card.querySelector('.q-type').value;
-            const newInstruction = prompt("Yêu cầu sửa câu hỏi (VD: Làm khó hơn, Đổi số liệu):");
+            const newInstruction = prompt("Yêu cầu sửa câu hỏi:");
             if (!newInstruction) return;
+
+            // Detect Subject for editing too
+            const subject = document.getElementById('t-subject').value;
+            const isEnglish = subject === 'Tiếng Anh';
+            const isSTEM = ['Toán', 'Vật lí', 'Hóa học', 'Sinh học'].includes(subject);
 
             btn.innerHTML = "⏳ AI đang sửa...";
             try {
                 const currentContent = card.querySelector('.q-content-text').value;
                 const modelName = await detectBestModel(apiKey);
                 
-                // CẬP NHẬT PROMPT EDIT: Ép buộc dùng dấu $
+                let editRules = [];
+                if(isEnglish) editRules.push("Dùng Tiếng Anh.");
+                if(type === 'true_false') editRules.push("Luôn tạo 4 ý (options).");
+                if(type === 'short_answer' && isSTEM) editRules.push("Đáp án là số thực.");
+
                 const promptText = `Bạn là trợ lý giáo viên. Sửa câu hỏi sau: "${newInstruction}". 
-                LƯU Ý: Dùng chuẩn LaTeX và BAO QUANH CÔNG THỨC BẰNG DẤU $ (Ví dụ: $x^2$).
+                Quy tắc: ${editRules.join(' ')} Dùng LaTeX bao quanh bởi $.
                 Loại câu: ${type}. Nội dung cũ: ${currentContent}. Chỉ trả về MỘT JSON Object duy nhất.`;
 
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
@@ -418,7 +436,7 @@
 
                 card.innerHTML = generateQuestionEditorHTML(newQuestionData, idx); 
                 renderLaTeX(card);
-                customAlert("Đã tạo câu hỏi mới thành công!", "Sửa Đề Hoàn Tất");
+                customAlert("Đã sửa câu hỏi thành công!", "Sửa Đề Hoàn Tất");
 
             } catch (e) { customAlert("Lỗi AI: " + e.message); } finally { btn.disabled = false; btn.innerHTML = "✨ Sửa bằng AI"; }
         };
