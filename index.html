@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Anti-Cheat V2)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Full Media Support)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -55,11 +55,6 @@
             color: white;
             flex-shrink: 0;
             margin: 2px;
-        }
-
-        /* Định dạng hiển thị văn bản để giữ ngắt dòng */
-        .content-display p {
-            margin-bottom: 0.5em; /* Khoảng cách giữa các đoạn */
         }
     </style>
 </head>
@@ -199,7 +194,7 @@
                 </div>
                 <div id="taking-exam" class="hidden">
                     <div class="sticky top-4 z-50 bg-white p-4 rounded-xl shadow-lg border-2 border-primary mb-6 flex flex-wrap justify-between items-center gap-2">
-                        <div><span class="font-bold">Thí sinh: <span id="display-s-name"></span></span><br><span class="text-xs text-red-600 font-bold" id="violation-display">Vi phạm: 0/5</span></div>
+                        <div><span class="font-bold">Thí sinh: <span id="display-s-name"></span></span><br><span class="text-xs text-red-600 font-bold" id="violation-display">Vi phạm: 0/3</span></div>
                         <div id="timer" class="text-2xl font-mono font-bold text-red-600">00:00</div>
                     </div>
                     <div id="exam-questions-render" class="space-y-8"></div>
@@ -241,8 +236,7 @@
         let currentExamData = null;
         let examTimer = null;
         let detectedModelName = null;
-        let violationCount = 0;
-        let isSubmitting = false; // Cờ kiểm tra trạng thái nộp bài
+        let violationCount = 0; // Số lỗi vi phạm của học sinh hiện tại
 
         signInAnonymously(auth);
         onAuthStateChanged(auth, (user) => {
@@ -253,7 +247,7 @@
             }
         });
 
-        // --- MATHJAX/KATEX RENDERER ---
+        // --- MATHJAX/KATEX RENDERER (Configured) ---
         // --- MATHJAX/KATEX RENDERER (Configured + Auto \dfrac + Auto \displaystyle) ---
         function renderLaTeX(element = document.body) {
             if (!window.renderMathInElement) {
@@ -307,6 +301,7 @@
         document.addEventListener('DOMContentLoaded', () => { renderLaTeX(document.body); });
         
         // --- HELPERS ---
+        // Hàm tráo đổi mảng (Fisher-Yates Shuffle)
         function shuffleArray(array) {
             for (let i = array.length - 1; i > 0; i--) {
                 const j = Math.floor(Math.random() * (i + 1));
@@ -354,12 +349,17 @@
             } catch (e) { return "gemini-pro"; }
         }
 
-        // --- EDITOR FUNCTIONS ---
+        // --- Hàm tạo HTML cho Editor (Dùng chung cho Add và Edit) ---
+        // CẬP NHẬT: Luôn hiển thị input chọn ảnh cho câu hỏi
         function generateQuestionEditorHTML(qData, idx) {
             const type = qData.type;
+            // const isAi = qData.aiGenerated || false; // Không cần biến này nữa để ẩn hiện ảnh
 
             let ansHtml = '';
+            // Phần nhập nội dung văn bản
             let contentHtml = `<div><label class="block text-xs font-bold mb-1">Nội dung Câu hỏi (Văn bản)</label><textarea class="input-field mb-2 font-medium text-gray-800 h-24 q-content-text" placeholder="Nhập nội dung câu hỏi ở đây...">${qData.content || ''}</textarea></div>`;
+            
+            // Phần nhập ảnh câu hỏi (LUÔN HIỆN)
             const imgInputHtml = `<div><label class="block text-xs font-bold mb-1">Ảnh Câu hỏi (Tùy chọn)</label><input type="file" accept="image/*" class="text-sm q-img-file" onchange="previewImage(this, 'preview-q-${idx}')"><input type="hidden" class="q-img-base64-hidden" value="${qData.img_data || ''}"><img id="preview-q-${idx}" src="${qData.img_data ? 'data:image/png;base64,'+qData.img_data : ''}" class="mt-2 h-20 object-contain border ${qData.img_data ? '' : 'hidden'}"></div>`;
 
             if(type === 'mcq') {
@@ -380,7 +380,11 @@
                 <h4 class="font-bold text-gray-700 mb-2">Câu hỏi ${idx + 1} (${type})</h4>
                 <div class="mb-4">
                     <input type="hidden" class="q-type" value="${type}">
-                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">${imgInputHtml}${contentHtml}</div>
+                    
+                    <div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                        ${imgInputHtml}
+                        ${contentHtml}
+                    </div>
                     
                     <div class="mt-2 border-t pt-2 bg-gray-50 p-2 rounded">
                         <label class="block text-xs font-bold mb-1 text-gray-600">Giải thích / Lời giải chi tiết:</label>
@@ -399,6 +403,7 @@
             `;
         }
         
+        // --- 1. AI GENERATION & EDITING ---
         window.generateWithAI = async (btn) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
             if (!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
@@ -438,11 +443,12 @@
                     q.aiGenerated = true;
                     div.innerHTML = generateQuestionEditorHTML(q, idx);
                     container.appendChild(div);
-                    renderLaTeX(div);
+                    renderLaTeX(div); // Render LaTeX cho thẻ mới
                 });
                 customAlert(`Đã tạo ${questions.length} câu hỏi!`);
             } catch (e) { customAlert(`Lỗi: ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
         };
+
 
         window.editQuestionWithAI = async (btn, idx) => {
             const apiKey = document.getElementById('ai-api-key').value.trim();
@@ -488,17 +494,26 @@
 
                 newQuestionData.type = newQuestionData.type === type ? newQuestionData.type : type;
                 newQuestionData.aiGenerated = true;
+
+                // Giữ lại ảnh cũ nếu có (vì AI chỉ sửa text)
                 newQuestionData.img_data = card.querySelector('.q-img-base64-hidden').value;
                 newQuestionData.explanation_img_data = card.querySelector('.q-expl-img-base64-hidden').value;
 
+                // CẬP NHẬT UI BẰNG CÁCH VẼ LẠI TOÀN BỘ CARD
                 card.innerHTML = generateQuestionEditorHTML(newQuestionData, idx); 
-                renderLaTeX(card);
+                renderLaTeX(card); // Render LaTeX cho thẻ vừa sửa
 
                 customAlert("Đã tạo câu hỏi mới thành công!", "Sửa Đề Hoàn Tất");
 
-            } catch (e) { customAlert("Lỗi AI: " + e.message); } finally { btn.disabled = false; btn.innerHTML = "✨ Sửa bằng AI"; }
+            } catch (e) { 
+                customAlert("Lỗi AI: " + e.message); 
+            } finally { 
+                btn.disabled = false; 
+                btn.innerHTML = "✨ Sửa bằng AI"; 
+            }
         };
 
+        // --- 2. MANUAL & SAVE ---
         window.addQuestion = () => {
             const container = document.getElementById('questions-list');
             const idx = container.children.length;
@@ -508,19 +523,24 @@
             const initialData = { type: 'mcq', content: '', explanation: '', options: {A:"", B:"", C:"", D:""} };
             div.innerHTML = generateQuestionEditorHTML(initialData, idx);
             
+            // Xử lý sự kiện thay đổi loại câu hỏi (thủ công)
             const typeSelect = div.querySelector('.q-type');
             typeSelect.addEventListener('change', (e) => {
                 const newType = e.target.value;
                 const dummyData = { type: newType, content: '', explanation: '' }; 
+                
+                // Lấy lại nội dung hiện tại trước khi re-render
                 dummyData.content = div.querySelector('.q-content-text')?.value || '';
                 dummyData.explanation = div.querySelector('.q-explanation')?.value || '';
                 dummyData.img_data = div.querySelector('.q-img-base64-hidden')?.value || '';
                 dummyData.explanation_img_data = div.querySelector('.q-expl-img-base64-hidden')?.value || '';
                 
+                // Re-render the inner HTML with the new type's structure
                 const currentIdx = Array.from(container.children).indexOf(div);
                 div.innerHTML = generateQuestionEditorHTML(dummyData, currentIdx);
                 div.querySelector('.q-type').value = newType;
-                renderLaTeX(div);
+                
+                renderLaTeX(div); // Render LaTeX cho thẻ vừa thêm
             });
 
             container.appendChild(div);
@@ -533,6 +553,7 @@
                     const img = document.getElementById(id);
                     img.src = e.target.result; 
                     img.classList.remove('hidden'); 
+                    // Cập nhật luôn vào hidden input để giữ trạng thái khi sửa
                     const hiddenInput = input.parentElement.querySelector('input[type="hidden"]');
                     if(hiddenInput) hiddenInput.value = e.target.result.split(',')[1];
                 }; 
@@ -554,10 +575,12 @@
                     const div = qDivs[i];
                     const type = div.querySelector('.q-type')?.value || 'mcq';
                     
+                    // 1. Xử lý ảnh câu hỏi
                     let imgData = div.querySelector('.q-img-base64-hidden')?.value || '';
                     const imgFile = div.querySelector('.q-img-file');
                     if(!imgData && imgFile?.files[0]) imgData = await fileToBase64(imgFile.files[0]);
 
+                    // 2. Xử lý ảnh lời giải
                     let explImgData = div.querySelector('.q-expl-img-base64-hidden')?.value || '';
                     const explImgFile = div.querySelector('.q-expl-img-file');
                     if(!explImgData && explImgFile?.files[0]) explImgData = await fileToBase64(explImgFile.files[0]);
@@ -572,11 +595,16 @@
                     
                     if(type === 'mcq') {
                         ansData.answer = div.querySelector('.q-ans-mcq')?.value || 'A';
+                        
                         const optA = div.querySelector('.q-opt-A')?.value || '';
                         const optB = div.querySelector('.q-opt-B')?.value || '';
                         const optC = div.querySelector('.q-opt-C')?.value || '';
                         const optD = div.querySelector('.q-opt-D')?.value || '';
-                        if(optA || optB || optC || optD) ansData.options = { A: optA, B: optB, C: optC, D: optD };
+                        
+                        if(optA || optB || optC || optD) { 
+                            ansData.options = { A: optA, B: optB, C: optC, D: optD };
+                        }
+                        
                     } else if(type === 'short_answer') {
                         ansData.answer = div.querySelector('.q-ans-sa')?.value || '';
                     } else if(type === 'true_false') {
@@ -593,6 +621,7 @@
                 const metadata = {
                     teacher: tName, grade: document.getElementById('t-grade').value, subject: document.getElementById('t-subject').value,
                     time: document.getElementById('t-time')?.value || 15, question_count: questions.length, created_at: new Date().toISOString(),
+                    // Cấu hình quyền xem kết quả
                     allow_score: document.getElementById('allow-view-score').checked,
                     allow_solution: document.getElementById('allow-view-solution').checked,
                     scoring: { 
@@ -610,7 +639,7 @@
             } catch (e) { customAlert(e.message); btn.disabled = false; btn.innerText = "💾 Tạo Đề"; }
         }
 
-        // --- RESULTS LOGIC ---
+        // Hàm chấm điểm chi tiết cho Teacher Analytics (tính điểm từng câu)
         function calculateDetailedScore(q, studentAnswers, scoring) {
             let maxScore = 0;
             let achievedScore = 0;
@@ -626,6 +655,7 @@
                 const correctAnswers = q.answers || [];
                 const numOptions = correctAnswers.length;
                 if (numOptions > 0) {
+                    // Tùy thuộc số lượng ý, điểm tối đa sẽ khác nhau
                     if (numOptions === 1) maxScore = sc.tf_1;
                     else if (numOptions === 2) maxScore = sc.tf_2;
                     else if (numOptions === 3) maxScore = sc.tf_3;
@@ -633,17 +663,22 @@
 
                     let correctCount = 0;
                     for (let j = 0; j < numOptions; j++) {
-                        if (studentAnswers.tf && studentAnswers.tf[j] === correctAnswers[j]) correctCount++;
+                        if (studentAnswers.tf && studentAnswers.tf[j] === correctAnswers[j]) {
+                            correctCount++;
+                        }
                     }
 
+                    // Chấm điểm theo số lượng ý đúng đạt được
                     if (correctCount === 1) achievedScore = sc.tf_1;
                     else if (correctCount === 2) achievedScore = sc.tf_2;
                     else if (correctCount === 3) achievedScore = sc.tf_3;
                     else if (correctCount === 4) achievedScore = sc.tf_4;
+                    // Note: Nếu số ý đúng là 0 thì điểm là 0.
                 }
             }
             return { achievedScore: parseFloat(achievedScore.toFixed(2)), maxScore: parseFloat(maxScore.toFixed(2)) };
         }
+
 
         window.loadResults = async () => {
             const id = document.getElementById('result-exam-id').value.trim().toUpperCase();
@@ -652,6 +687,7 @@
             btn.disabled = true; btn.innerText = "Đang tải...";
 
             try {
+                // 1. Tải Metadata & Results
                 const examSnap = await getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_exams', id));
                 if (!examSnap.exists()) throw new Error("Mã đề không tồn tại.");
                 const examMetadata = examSnap.data();
@@ -664,28 +700,36 @@
                     return;
                 }
 
+                // 2. Tải chi tiết các câu hỏi (để lấy max score)
                 const qProms = [];
                 for (let i = 0; i < examMetadata.question_count; i++) qProms.push(getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_questions', `${id}_${i}`)));
                 const questions = (await Promise.all(qProms)).map(s => s.data());
 
+                // 3. Phân tích dữ liệu chi tiết
                 const totalStudents = results.length;
                 const questionCount = questions.length;
                 let questionCorrectCounts = Array(questionCount).fill(0);
-                let detailedScores = [];
+                let detailedScores = []; // Lưu điểm chi tiết từng câu của từng thí sinh
 
                 results.forEach((r, rIndex) => {
-                    r.detailed_answers = r.detailed_answers || [];
+                    r.detailed_answers = r.detailed_answers || []; // Lấy đáp án chi tiết nếu có
                     let studentRow = { name: r.name, class: r.class_, score: r.score, violation_count: r.violation_count || 0, question_scores: [] };
                     
                     questions.forEach((q, qIndex) => {
-                        const studentAnswers = r.detailed_answers[qIndex]?.answers || {};
+                        const studentAnswers = r.detailed_answers[qIndex]?.answers || {}; // Lấy đáp án của thí sinh cho câu này
                         const scores = calculateDetailedScore(q, studentAnswers, examMetadata.scoring);
+                        
                         studentRow.question_scores.push(scores);
-                        if (scores.achievedScore === scores.maxScore && scores.maxScore > 0) questionCorrectCounts[qIndex]++;
+
+                        // Tăng biến đếm nếu đạt điểm tối đa (làm đúng hoàn toàn)
+                        if (scores.achievedScore === scores.maxScore && scores.maxScore > 0) {
+                            questionCorrectCounts[qIndex]++;
+                        }
                     });
                     detailedScores.push(studentRow);
                 });
 
+                // 4. Báo cáo Tỉ lệ làm đúng theo Câu Hỏi (Biểu đồ cột)
                 const questionLabels = questions.map((_, i) => `Câu ${i + 1}`);
                 const correctnessPercentages = questionCorrectCounts.map(count => (count / totalStudents) * 100);
 
@@ -694,44 +738,108 @@
                     type: 'bar',
                     data: {
                         labels: questionLabels,
-                        datasets: [{ label: 'Tỉ lệ làm đúng (%)', data: correctnessPercentages, backgroundColor: '#3B82F6', borderColor: '#1D4ED8', borderWidth: 1 }]
+                        datasets: [{
+                            label: 'Tỉ lệ làm đúng (%)',
+                            data: correctnessPercentages,
+                            backgroundColor: '#3B82F6',
+                            borderColor: '#1D4ED8',
+                            borderWidth: 1
+                        }]
                     },
-                    options: { responsive: true, maintainAspectRatio: false, scales: { y: { beginAtZero: true, max: 100, title: { display: true, text: 'Phần trăm thí sinh đúng' } } } }
+                    options: {
+                        responsive: true,
+                        maintainAspectRatio: false,
+                        scales: {
+                            y: {
+                                beginAtZero: true,
+                                max: 100,
+                                title: { display: true, text: 'Phần trăm thí sinh đúng' }
+                            }
+                        }
+                    }
                 });
 
+                // 5. Bảng thống kê chi tiết điểm từng câu (Hình tròn màu)
                 let detailedTableHtml = `<table class="w-full text-sm text-left text-gray-700">
                     <thead class="text-xs text-gray-700 uppercase bg-gray-100">
-                        <tr><th class="px-4 py-3 sticky left-0 bg-gray-100 w-40">Thí sinh</th><th class="px-4 py-3 text-right">Tổng điểm</th>${questionLabels.map(label => `<th class="px-2 py-3 text-center">${label}</th>`).join('')}</tr>
-                        <tr><th class="px-4 py-1 sticky left-0 bg-gray-200 w-40">Điểm tối đa</th><th class="px-4 py-1 text-right font-bold">${examMetadata.question_count > 0 ? questions.reduce((sum, q) => sum + calculateDetailedScore(q, {}, examMetadata.scoring).maxScore, 0).toFixed(2) : 'N/A'}</th>${questions.map(q => `<th class="px-2 py-1 text-center bg-gray-200">${calculateDetailedScore(q, {}, examMetadata.scoring).maxScore.toFixed(2)}</th>`).join('')}</tr>
-                    </thead><tbody>`;
+                        <tr>
+                            <th class="px-4 py-3 sticky left-0 bg-gray-100 w-40">Thí sinh</th>
+                            <th class="px-4 py-3 text-right">Tổng điểm</th>
+                            ${questionLabels.map(label => `<th class="px-2 py-3 text-center">${label}</th>`).join('')}
+                        </tr>
+                        <tr>
+                            <th class="px-4 py-1 sticky left-0 bg-gray-200 w-40">Điểm tối đa</th>
+                            <th class="px-4 py-1 text-right font-bold">${examMetadata.question_count > 0 ? questions.reduce((sum, q) => sum + calculateDetailedScore(q, {}, examMetadata.scoring).maxScore, 0).toFixed(2) : 'N/A'}</th>
+                            ${questions.map(q => `<th class="px-2 py-1 text-center bg-gray-200">${calculateDetailedScore(q, {}, examMetadata.scoring).maxScore.toFixed(2)}</th>`).join('')}
+                        </tr>
+                    </thead>
+                    <tbody>`;
                 
                 detailedScores.forEach(row => {
-                    detailedTableHtml += `<tr class="bg-white border-b hover:bg-gray-50"><td class="px-4 py-3 sticky left-0 bg-white">${row.name} (${row.class})</td><td class="px-4 py-3 text-right font-bold text-primary">${row.score.toFixed(2)}</td>${row.question_scores.map(qs => {
-                        const max = qs.maxScore;
-                        const achieved = qs.achievedScore;
-                        let color = 'bg-red-500'; 
-                        if (achieved === max) color = 'bg-green-500'; 
-                        else if (achieved > 0 && achieved < max) color = 'bg-yellow-500';
-                        return `<td class="px-2 py-2 text-center"><span class="score-circle ${color}" title="Đạt: ${achieved} / ${max}">${achieved.toFixed(2)}</span></td>`;
-                    }).join('')}</tr>`;
+                    detailedTableHtml += `<tr class="bg-white border-b hover:bg-gray-50">
+                        <td class="px-4 py-3 sticky left-0 bg-white">${row.name} (${row.class})</td>
+                        <td class="px-4 py-3 text-right font-bold text-primary">${row.score.toFixed(2)}</td>
+                        ${row.question_scores.map(qs => {
+                            const max = qs.maxScore;
+                            const achieved = qs.achievedScore;
+                            let color = 'bg-red-500'; // Đỏ (0 điểm)
+                            if (achieved === max) color = 'bg-green-500'; // Xanh lá (Điểm tối đa)
+                            else if (achieved > 0 && achieved < max) color = 'bg-yellow-500'; // Vàng (Không tối đa)
+
+                            return `<td class="px-2 py-2 text-center">
+                                <span class="score-circle ${color}" title="Đạt: ${achieved} / ${max}">
+                                    ${achieved.toFixed(2)}
+                                </span>
+                            </td>`;
+                        }).join('')}
+                    </tr>`;
                 });
                 detailedTableHtml += '</tbody></table>';
                 document.getElementById('detailed-score-table').innerHTML = detailedTableHtml;
                 
-                let tableHtml = `<table class="w-full text-sm text-left text-gray-500"><thead class="text-xs text-gray-700 uppercase bg-gray-100"><tr><th class="px-4 py-3">Hạng</th><th class="px-4 py-3">Tên</th><th class="px-4 py-3">Lớp</th><th class="px-4 py-3 text-right">Điểm</th><th class="px-4 py-3 text-center">Số lỗi VP</th></tr></thead><tbody>`;
+                // 6. Bảng kết quả tổng hợp (có thêm cột Vi phạm)
+                let tableHtml = `<table class="w-full text-sm text-left text-gray-500">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-100">
+                        <tr>
+                            <th class="px-4 py-3">Hạng</th>
+                            <th class="px-4 py-3">Tên</th>
+                            <th class="px-4 py-3">Lớp</th>
+                            <th class="px-4 py-3 text-right">Điểm</th>
+                            <th class="px-4 py-3 text-center">Số lỗi VP</th> </tr>
+                    </thead>
+                    <tbody>`;
                 results.sort((a, b) => b.score - a.score).forEach((r, i) => {
-                    tableHtml += `<tr class="bg-white border-b"><td class="px-4 py-3 font-bold">${i+1}</td><td class="px-4 py-3">${r.name}</td><td class="px-4 py-3">${r.class}</td><td class="px-4 py-3 text-right font-bold text-primary">${parseFloat(r.score).toFixed(2)}</td><td class="px-4 py-3 text-center">${r.violation_count || 0}</td></tr>`;
+                    tableHtml += `<tr class="bg-white border-b">
+                        <td class="px-4 py-3 font-bold">${i+1}</td>
+                        <td class="px-4 py-3">${r.name}</td>
+                        <td class="px-4 py-3">${r.class}</td>
+                        <td class="px-4 py-3 text-right font-bold text-primary">${parseFloat(r.score).toFixed(2)}</td>
+                        <td class="px-4 py-3 text-center">${r.violation_count || 0}</td> </tr>`;
                 });
                 tableHtml += '</tbody></table>';
                 tableHtml += `<div class="mt-4 text-right"><button onclick="exportResultsToExcel()" class="btn bg-green-600 text-xs">Xuất Excel</button></div>`;
                 document.getElementById('results-table-container').innerHTML = tableHtml;
                 
+                // 7. Cập nhật biểu đồ tổng điểm (phân bố điểm)
                 if (window.scoreChartInstance) window.scoreChartInstance.destroy();
                 window.scoreChartInstance = new Chart(document.getElementById('scoreChart'), { 
                     type: 'bar', 
                     data: { 
                         labels: ['0-2', '2-4', '4-6', '6-8', '8-10'], 
-                        datasets: [{ label: 'Số lượng thí sinh', data: [0,0,0,0,0].map((_,i)=>{ return results.filter(r=>{ const s=r.score; if(i===0)return s<2; if(i===1)return s>=2&&s<4; if(i===2)return s>=4&&s<6; if(i===3)return s>=6&&s<8; return s>=8 }).length }), backgroundColor: '#3B82F6' }] 
+                        datasets: [{ 
+                            label: 'Số lượng thí sinh', 
+                            data: [0,0,0,0,0].map((_,i)=>{
+                                return results.filter(r=>{
+                                    const s=r.score;
+                                    if(i===0)return s<2;
+                                    if(i===1)return s>=2&&s<4;
+                                    if(i===2)return s>=4&&s<6;
+                                    if(i===3)return s>=6&&s<8;
+                                    return s>=8
+                                }).length
+                            }), 
+                            backgroundColor: '#3B82F6' 
+                        }] 
                     } 
                 });
                 
@@ -741,17 +849,23 @@
             } catch (e) { 
                 customAlert("Lỗi tải kết quả: " + e.message); 
                 document.getElementById('results-charts-analysis').classList.add('hidden');
-            } finally { btn.disabled = false; btn.innerText = "Xem"; }
+            } finally { 
+                btn.disabled = false; btn.innerText = "Xem"; 
+            }
         };
 
+        // NEW: Hàm xuất Excel
         window.exportResultsToExcel = () => {
              const id = document.getElementById('result-exam-id').value.trim().toUpperCase();
              const table = document.getElementById('results-table-container').querySelector('table');
-             if (table) XLSX.writeFile(XLSX.utils.table_to_book(table, {sheet:'KQ'}), `KetQua_${id}_VP.xlsx`);
-             else customAlert("Không tìm thấy bảng kết quả để xuất.");
+             if (table) {
+                 XLSX.writeFile(XLSX.utils.table_to_book(table, {sheet:'KQ'}), `KetQua_${id}_VP.xlsx`);
+             } else {
+                 customAlert("Không tìm thấy bảng kết quả để xuất.");
+             }
          };
 
-        // --- STUDENT & ANTI-CHEAT ---
+        // --- STUDENT VIEW LOGIC (Updated for Shuffle with Fixed Labels) ---
         window.checkExam = async () => {
             const id = document.getElementById('s-exam-id').value.toUpperCase();
             if(!id) return;
@@ -765,23 +879,20 @@
 
         window.setupAntiCheat = () => {
             violationCount = 0;
-            const MAX_VIOLATIONS = 5; // Cập nhật lên 5
+            const MAX_VIOLATIONS = 3;
             const warn = (msg) => {
-                if(isSubmitting) return; // Nếu đang nộp bài thì không tính lỗi
-                
                 violationCount++;
                 document.getElementById('violation-display').innerHTML = `Vi phạm: <b class="text-red-600">${violationCount}/${MAX_VIOLATIONS}</b>`;
-                
-                if(violationCount < MAX_VIOLATIONS) {
-                    alert(`⚠️ CẢNH BÁO GIAN LẬN (${violationCount}/${MAX_VIOLATIONS}): ${msg}`);
-                } else { 
-                    alert("🚫 VI PHẠM QUÁ MỨC. NỘP BÀI NGAY!"); 
-                    submitExam(); 
-                }
+                if(violationCount < MAX_VIOLATIONS) alert(`⚠️ CẢNH BÁO GIAN LẬN (${violationCount}/${MAX_VIOLATIONS}): ${msg}`);
+                else { alert("🚫 VI PHẠM QUÁ MỨC. NỘP BÀI NGAY!"); submitExam(); }
             };
 
+            // Chống rời màn hình
             document.addEventListener("visibilitychange", () => { if (document.hidden) warn("Rời màn hình"); });
+            
+            // Chống thoát full screen
             document.addEventListener("fullscreenchange", () => {
+                // Kiểm tra xem có đang làm bài không (vùng taking-exam có hiển thị không)
                 if (!document.fullscreenElement && !document.getElementById('taking-exam').classList.contains('hidden')) {
                      warn("Bạn đã thoát chế độ Toàn Màn Hình!");
                 }
@@ -796,13 +907,18 @@
             const name = document.getElementById('s-name').value.trim();
             if (!name) return customAlert("Nhập tên!");
             
-            isSubmitting = false; // Reset trạng thái khi bắt đầu
-
+            // Yêu cầu Fullscreen ngay khi có sự kiện click
             try {
-                if (document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen();
-                else if (document.documentElement.webkitRequestFullscreen) await document.documentElement.webkitRequestFullscreen();
-                else if (document.documentElement.msRequestFullscreen) await document.documentElement.msRequestFullscreen();
-            } catch (err) { console.warn("Fullscreen request failed:", err); }
+                if (document.documentElement.requestFullscreen) {
+                    await document.documentElement.requestFullscreen();
+                } else if (document.documentElement.webkitRequestFullscreen) { /* Safari */
+                    await document.documentElement.webkitRequestFullscreen();
+                } else if (document.documentElement.msRequestFullscreen) { /* IE11 */
+                    await document.documentElement.msRequestFullscreen();
+                }
+            } catch (err) {
+                console.warn("Fullscreen request failed:", err);
+            }
 
             e.target.innerText = "Đang tải đề...";
             try {
@@ -814,29 +930,41 @@
                 document.getElementById('display-s-name').innerText = name;
                 setupAntiCheat();
 
+                // 1. TẠO DANH SÁCH CHỈ SỐ VÀ TRÁO ĐỔI (SHUFFLE QUESTIONS)
                 let originalIndices = Array.from({length: currentExamData.questions.length}, (_, i) => i);
                 originalIndices = shuffleArray(originalIndices);
 
+                // 2. RENDER THEO DANH SÁCH ĐÃ TRÁO
                 originalIndices.forEach((originalIndex, displayIndex) => {
                     const q = currentExamData.questions[originalIndex];
+                    
+                    // CẬP NHẬT: Hiển thị cả ảnh và text nếu có
                     let imgHTML = q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-64 mx-auto mb-4 border rounded shadow-sm">` : '';
-                    let textHTML = q.text_content ? `<div class="p-4 bg-blue-50 border-l-4 border-blue-500 mb-4 content-display">${marked.parse(q.text_content, {breaks: true})}</div>` : '';
+                    let textHTML = q.text_content ? `<div class="p-4 bg-blue-50 border-l-4 border-blue-500 mb-4">${marked.parse(q.text_content)}</div>` : '';
                     let content = `${imgHTML}${textHTML}`;
+
                     let input = '';
                     
                     if(q.type === 'mcq') {
+                        // 3. TRÁO ĐỔI ĐÁP ÁN NHƯNG GIỮ NHÃN CỐ ĐỊNH (SHUFFLE OPTIONS, FIX LABELS)
                         let validKeys = ['A','B','C','D'].filter(k => q.options && q.options[k]);
                         let shuffledKeys = shuffleArray(validKeys);
                         const fixedLabels = ['A', 'B', 'C', 'D'];
 
-                        input = `<div class="flex flex-col gap-2">${shuffledKeys.map((originalKey, idx) => {
-                            const text = q.options[originalKey];
-                            const displayLabel = fixedLabels[idx];
-                            return `<div id="opt-row-${originalIndex}-${originalKey}" onclick="selectOpt(${originalIndex},'${originalKey}')" class="mcq-option"><span class="mcq-label">${displayLabel}.</span><span>${text}</span></div>`;
-                        }).join('')}</div><input type="hidden" id="ans-${originalIndex}">`;
+                        input = `<div class="flex flex-col gap-2">
+                            ${shuffledKeys.map((originalKey, idx) => {
+                                const text = q.options[originalKey];
+                                const displayLabel = fixedLabels[idx];
+                                return `<div id="opt-row-${originalIndex}-${originalKey}" onclick="selectOpt(${originalIndex},'${originalKey}')" class="mcq-option">
+                                    <span class="mcq-label">${displayLabel}.</span>
+                                    <span>${text}</span>
+                                </div>`;
+                            }).join('')}
+                        </div><input type="hidden" id="ans-${originalIndex}">`;
                     } else if (q.type === 'short_answer') {
                         input = `<input type="text" id="ans-${originalIndex}" class="input-field mt-2 border-2" placeholder="Trả lời...">`;
-                    } else if (q.type === 'true_false') {
+                    }
+                    else if (q.type === 'true_false') {
                          input = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">${(q.tf_options||['a','b','c','d']).map((t,j)=>`<div class="border p-2 flex justify-between bg-white items-center text-sm"><span>${t}</span><label class="flex items-center gap-2"><input type="checkbox" id="tf-${originalIndex}-${j}" class="w-5 h-5 accent-green-600"> Đúng</label></div>`).join('')}</div>`;
                     }
 
@@ -847,7 +975,8 @@
                 
                 document.getElementById('student-info-form').classList.add('hidden');
                 document.getElementById('taking-exam').classList.remove('hidden');
-                renderLaTeX(document.getElementById('taking-exam'));
+                
+                renderLaTeX(document.getElementById('taking-exam')); // Render LaTeX cho toàn bộ phần thi
 
                 let time = currentExamData.time * 60;
                 examTimer = setInterval(() => {
@@ -859,17 +988,20 @@
         }
 
         window.selectOpt = (i, o) => {
+            // i là originalIndex, o là key (A, B...)
             ['A','B','C','D'].forEach(k => { const el = document.getElementById(`opt-row-${i}-${k}`); if(el) el.classList.remove('selected'); });
             const clicked = document.getElementById(`opt-row-${i}-${o}`); if(clicked) clicked.classList.add('selected');
             document.getElementById(`ans-${i}`).value = o;
         }
 
         window.submitExam = async () => {
-             isSubmitting = true; // Bật cờ nộp bài NGAY LẬP TỨC để chặn anti-cheat
              clearInterval(examTimer);
              
+             // Thoát chế độ toàn màn hình khi nộp bài
              if (document.fullscreenElement) {
-                try { await document.exitFullscreen(); } catch(e) { console.log(e); }
+                try {
+                    await document.exitFullscreen();
+                } catch(e) { console.log(e); }
              }
 
              document.getElementById('btn-submit').disabled = true; document.getElementById('btn-submit').innerText = "Đang chấm...";
@@ -877,43 +1009,55 @@
              const sc = currentExamData.scoring || { mcq:0.25, sa:0.5, tf_4:1.0, tf_1:0.1 };
              const { allow_score, allow_solution } = currentExamData; 
              let detailedReportHtml = '';
-             let studentAnswersData = [];
+             let studentAnswersData = []; // Mảng lưu trữ câu trả lời chi tiết của học sinh
              
+             // Duyệt theo thứ tự GỐC của câu hỏi để tính điểm và báo cáo
              currentExamData.questions.forEach((q, i) => {
                  let studentAnswerDisplay = 'Chưa trả lời';
                  let correctAnswerDisplay = '';
                  let isCorrect = false;
+                 
                  let currentQAnswers = {};
                  
                  if (q.type === 'mcq') {
+                     // Lấy giá trị từ input ẩn (id theo originalIndex i)
                      const studentChoice = document.getElementById(`ans-${i}`)?.value;
                      currentQAnswers.mcq = studentChoice;
+                     
                      studentAnswerDisplay = studentChoice || 'Chưa chọn';
                      correctAnswerDisplay = q.answer;
                      isCorrect = (studentChoice === q.answer);
                      if (studentChoice) studentAnswerDisplay = `${studentChoice} <span class="${isCorrect ? 'text-green-500' : 'text-red-500'}">(Đáp án của bạn)</span>`;
+                     
                      if(isCorrect) score += sc.mcq;
                  } else if (q.type === 'short_answer') {
                      const studentText = document.getElementById(`ans-${i}`)?.value;
                      currentQAnswers.sa = studentText;
+
                      studentAnswerDisplay = studentText || 'Chưa nhập';
                      correctAnswerDisplay = q.answer;
                      isCorrect = (studentText?.trim().toLowerCase() === q.answer.toLowerCase());
+                     
                      if(isCorrect) score += sc.sa;
                  } else if (q.type === 'true_false') {
                      let studentChoices = [];
                      let correctAnswers = q.answers || [];
                      let correctCount = 0;
+                     
                      let studentTF = [];
+
                      for (let j = 0; j < (q.tf_options?.length || 4); j++) {
                          let studentChoice = document.getElementById(`tf-${i}-${j}`)?.checked ? 'Đ' : 'S';
                          studentTF.push(studentChoice);
+
                          studentChoices.push(`Ý ${['a','b','c','d'][j]}: ${studentChoice}`);
                          if (studentChoice === correctAnswers[j]) correctCount++;
                      }
                      currentQAnswers.tf = studentTF;
+                     
                      studentAnswerDisplay = studentChoices.join(' | ');
                      correctAnswerDisplay = (q.tf_options || []).map((t, j) => `Ý ${['a','b','c','d'][j]}: ${correctAnswers[j]}`).join(' | ');
+                     
                      if(correctAnswers.length > 0) {
                          if(correctCount === 1) score += sc.tf_1; else if(correctCount === 2) score += sc.tf_2; else if(correctCount === 3) score += sc.tf_3; else if(correctCount === 4) score += sc.tf_4;
                          isCorrect = (correctCount === correctAnswers.length && correctCount > 0);
@@ -921,24 +1065,59 @@
                  }
                  
                  studentAnswersData.push({ answers: currentQAnswers });
+
                  const statusClass = isCorrect ? 'border-green-500 bg-green-50' : 'border-red-500 bg-red-50';
                  const statusText = isCorrect ? 'ĐÚNG' : 'SAI';
 
+                 // CẬP NHẬT: Hiển thị cả ảnh và text trong báo cáo chi tiết
                  let qImgHTML = q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-32 object-contain mb-2 border rounded">` : '';
-                 let qTextHTML = q.text_content ? `<div class="font-medium content-display">${marked.parse(q.text_content, {breaks: true})}</div>` : '';
+                 let qTextHTML = q.text_content ? `<div class="font-medium">${marked.parse(q.text_content)}</div>` : '';
 
-                 detailedReportHtml += `<div class="p-4 border-l-4 rounded ${statusClass}"><h5 class="font-bold mb-2 text-lg text-gray-800">Câu ${i + 1} (Gốc): <span class="text-sm font-semibold">${statusText} (${isCorrect ? (sc.mcq||sc.sa||sc.tf_4).toFixed(2) : '0.00'} điểm)</span></h5><div class="bg-white p-3 rounded shadow-sm text-sm">${qImgHTML}${qTextHTML}<p class="mt-2"><strong>Đáp án của bạn:</strong> ${studentAnswerDisplay}</p><p class="mt-1 text-green-700"><strong>Đáp án đúng:</strong> ${correctAnswerDisplay}</p><details class="mt-3"><summary class="cursor-pointer font-bold text-blue-600">Lời giải chi tiết</summary><div class="mt-2 p-2 border-t pt-2 content-display">${q.explanation_img_data ? `<img src="data:image/png;base64,${q.explanation_img_data}" class="max-h-48 mb-3 border rounded shadow-sm">` : ''}${q.explanation ? marked.parse(q.explanation, {breaks: true}) : (q.explanation_img_data ? '' : 'Không có lời giải chi tiết.')}</div></details></div></div>`;
+                 detailedReportHtml += `
+                     <div class="p-4 border-l-4 rounded ${statusClass}">
+                         <h5 class="font-bold mb-2 text-lg text-gray-800">Câu ${i + 1} (Gốc): <span class="text-sm font-semibold">${statusText} (${isCorrect ? (sc.mcq||sc.sa||sc.tf_4).toFixed(2) : '0.00'} điểm)</span></h5>
+                         
+                         <div class="bg-white p-3 rounded shadow-sm text-sm">
+                             ${qImgHTML}
+                             ${qTextHTML}
+                             
+                             <p class="mt-2"><strong>Đáp án của bạn:</strong> ${studentAnswerDisplay}</p>
+                             <p class="mt-1 text-green-700"><strong>Đáp án đúng:</strong> ${correctAnswerDisplay}</p>
+                             
+                             <details class="mt-3">
+                                 <summary class="cursor-pointer font-bold text-blue-600">Lời giải chi tiết</summary>
+                                 <div class="mt-2 p-2 border-t pt-2">
+                                     ${q.explanation_img_data ? `<img src="data:image/png;base64,${q.explanation_img_data}" class="max-h-48 mb-3 border rounded shadow-sm">` : ''}
+                                     ${q.explanation ? marked.parse(q.explanation) : (q.explanation_img_data ? '' : 'Không có lời giải chi tiết.')}
+                                 </div>
+                             </details>
+                         </div>
+                     </div>
+                 `;
              });
 
+             // 2. Cập nhật Firebase (Lưu cả violation count và detailed answers)
              await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_results', currentExamData.id), {
-                 results: arrayUnion({ name: document.getElementById('s-name').value, class: document.getElementById('s-class').value, school: document.getElementById('s-school').value, score: score, submittedAt: new Date().toISOString(), violation_count: violationCount, detailed_answers: studentAnswersData })
+                 results: arrayUnion({ 
+                     name: document.getElementById('s-name').value, 
+                     class: document.getElementById('s-class').value, 
+                     school: document.getElementById('s-school').value, 
+                     score: score, 
+                     submittedAt: new Date().toISOString(),
+                     violation_count: violationCount, // NEW: Số lỗi vi phạm
+                     detailed_answers: studentAnswersData // NEW: Đáp án chi tiết
+                 })
              });
 
+             // 3. Hiển thị kết quả dựa trên quyền hạn
              document.getElementById('taking-exam').classList.add('hidden'); 
              document.getElementById('student-result').classList.remove('hidden');
 
-             if (allow_score) document.getElementById('final-score').innerText = score.toFixed(2);
-             else document.getElementById('score-display-box').innerHTML = '<p class="text-xl font-bold text-red-500">Giáo viên đã **khóa** tính năng xem điểm.</p>';
+             if (allow_score) {
+                 document.getElementById('final-score').innerText = score.toFixed(2);
+             } else {
+                 document.getElementById('score-display-box').innerHTML = '<p class="text-xl font-bold text-red-500">Giáo viên đã **khóa** tính năng xem điểm.</p>';
+             }
 
              if (allow_solution && allow_score) { 
                  document.getElementById('report-details-container').innerHTML = detailedReportHtml;
