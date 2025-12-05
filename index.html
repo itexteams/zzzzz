@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Fix JSON Robust)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Fix JSON Final)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -238,30 +238,61 @@
             } catch (e) { return "gemini-pro"; }
         }
 
-        // --- NEW: ROBUST JSON PARSER ---
-        // Hàm này chuyên trị lỗi "Bad escaped character" do LaTeX sinh ra
+        // ==========================================
+        //  HÀM XỬ LÝ JSON SIÊU MẠNH (ULTIMATE FIX)
+        // ==========================================
         function cleanAndParseJSON(text) {
+            // Bước 1: Loại bỏ Markdown wrapper
             let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+
             try {
-                return JSON.parse(clean); // Thử parse chuẩn trước
+                // Thử parse ngay nếu AI "ngoan"
+                return JSON.parse(clean);
             } catch (e1) {
-                console.warn("Lỗi parse JSON lần 1 (LaTeX chưa escape), đang sửa...", e1.message);
+                console.warn("Lỗi JSON lần 1, đang xử lý mạnh tay...");
                 
-                // CẤP ĐỘ 2: Fix lỗi phổ biến nhất - Backslash đứng trước ký tự lạ
-                // Regex tìm các dấu \ KHÔNG phải là escape chuẩn của JSON ( " \ / b f n r t u )
-                // và nhân đôi chúng lên thành \\
-                clean = clean.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+                // Bước 2: Bruteforce Escape Backslashes
+                // Thay vì regex phức tạp, ta sẽ quét từng ký tự
+                // Logic: Tìm tất cả dấu '\', nếu ký tự sau nó KHÔNG PHẢI là ký tự đặc biệt của JSON (" \ / b f n r t u)
+                // thì ta thêm một dấu '\' nữa vào.
+                let fixed = "";
+                for (let i = 0; i < clean.length; i++) {
+                    if (clean[i] === '\\') {
+                        // Kiểm tra ký tự tiếp theo
+                        let nextChar = clean[i + 1];
+                        // Danh sách ký tự escape hợp lệ trong JSON
+                        const validEscapes = ['"', '\\', '/', 'b', 'f', 'n', 'r', 't', 'u'];
+                        
+                        if (validEscapes.includes(nextChar)) {
+                            // Đây là escape hợp lệ (ví dụ: \n, \"), giữ nguyên
+                            fixed += clean[i]; 
+                        } else {
+                            // Đây là lỗi (ví dụ: \frac, \Delta), cần double escape -> \\
+                            fixed += "\\\\";
+                        }
+                    } else {
+                        fixed += clean[i];
+                    }
+                }
 
                 try {
-                    return JSON.parse(clean);
+                    return JSON.parse(fixed);
                 } catch (e2) {
-                     console.warn("Lỗi parse JSON lần 2, thử cấp độ mạnh nhất...", e2.message);
-                    // CẤP ĐỘ 3: Nuclear Option
-                    // Nếu vẫn lỗi, khả năng là \f (form feed) trong \frac hoặc \t (tab) trong \theta
-                    // bị hiểu nhầm là ký tự điều khiển thật.
-                    // Ta sẽ escape toàn bộ backslash đứng trước chữ cái để biến chúng thành string thường.
-                    clean = clean.replace(/\\([a-zA-Z]+)/g, "\\\\$1");
-                    return JSON.parse(clean);
+                    console.warn("Lỗi JSON lần 2 (vẫn lỗi), thử biện pháp cuối cùng...");
+                    
+                    // Bước 3: Last Resort - Xử lý trường hợp AI trả về text thuần thay vì JSON
+                    // Nếu AI quên format JSON mà trả về text kiểu "Dưới đây là câu hỏi..."
+                    // Ta tìm cặp ngoặc vuông [] đầu tiên và cuối cùng
+                    const start = fixed.indexOf('[');
+                    const end = fixed.lastIndexOf(']');
+                    if (start !== -1 && end !== -1) {
+                        try {
+                            return JSON.parse(fixed.substring(start, end + 1));
+                        } catch (e3) {
+                             throw new Error("Không thể đọc dữ liệu từ AI. Hãy thử lại!");
+                        }
+                    }
+                    throw e2;
                 }
             }
         }
@@ -320,7 +351,6 @@
                 let contextPrompt = fileInput.files.length === 0 && !topicText ? `Đóng vai giáo viên. Tạo đề kiểm tra.` : `Tạo đề kiểm tra dựa trên nội dung dưới đây.`;
 
                 const promptText = `${contextPrompt} Yêu cầu: ${numMcq} trắc nghiệm (mcq), ${numTf} đúng/sai (true_false), ${numSa} trả lời ngắn (short_answer). Tiếng Việt. 
-                Sử dụng chuẩn LaTeX (LƯU Ý QUAN TRỌNG: Các dấu gạch chéo của LaTeX phải được escape 2 lần, ví dụ dùng \\\\frac thay vì \\frac). 
                 Output JSON Array only. Structure: [{ "type": "mcq", "content": "...", "options": {"A":"..","B":"..","C":"..","D":".."}, "answer": "A", "explanation": "..." }, ...]`;
                 
                 parts.push({text: promptText});
@@ -362,7 +392,7 @@
             try {
                 const currentContent = card.querySelector('.q-content-text').value;
                 const modelName = await detectBestModel(apiKey);
-                const promptText = `Bạn là trợ lý giáo viên. Sửa câu hỏi sau: "${newInstruction}". LƯU Ý: Dùng LaTeX chuẩn JSON (Ví dụ: \\\\frac thay vì \\frac). Loại câu: ${type}. Nội dung cũ: ${currentContent}. Chỉ trả về MỘT JSON Object duy nhất.`;
+                const promptText = `Bạn là trợ lý giáo viên. Sửa câu hỏi sau: "${newInstruction}". Loại câu: ${type}. Nội dung cũ: ${currentContent}. Chỉ trả về MỘT JSON Object duy nhất.`;
 
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/models/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
