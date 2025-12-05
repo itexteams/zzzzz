@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Fixed Labels)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Media Support)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -248,34 +248,21 @@
         });
 
         // --- MATHJAX/KATEX RENDERER (Configured) ---
-        // --- MATHJAX/KATEX RENDERER (Configured + Auto replace \frac -> \dfrac) ---
         function renderLaTeX(element = document.body) {
-            if (!window.renderMathInElement) {
+            if (window.renderMathInElement) {
+                renderMathInElement(element, {
+                    delimiters: [
+                        {left: '$$', right: '$$', display: true}, 
+                        {left: '\\[', right: '\\]', display: true}, 
+                        {left: '$', right: '$', display: false},    
+                        {left: '\\(', right: '\\)', display: false} 
+                    ],
+                    throwOnError: false
+                });
+            } else {
                 console.warn("KaTeX auto-render not loaded. Math rendering disabled.");
-                return;
             }
-        
-            // --- STEP 1: Replace \frac -> \dfrac BEFORE rendering ---
-            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
-            let node;
-            while (node = walker.nextNode()) {
-                if (node.nodeValue.includes("\\frac")) {
-                    node.nodeValue = node.nodeValue.replace(/\\frac/g, "\\dfrac");
-                }
-            }
-        
-            // --- STEP 2: Render KaTeX ---
-            renderMathInElement(element, {
-                delimiters: [
-                    { left: '$$', right: '$$', display: true },
-                    { left: '\\[', right: '\\]', display: true },
-                    { left: '$', right: '$', display: false },
-                    { left: '\\(', right: '\\)', display: false }
-                ],
-                throwOnError: false
-            });
         }
-
         document.addEventListener('DOMContentLoaded', () => { renderLaTeX(document.body); });
         
         // --- HELPERS ---
@@ -348,7 +335,7 @@
             }
 
             const isManual = !isAi;
-            const imgInputHtml = isManual ? `<div><label class="block text-xs font-bold mb-1">Ảnh (Tùy chọn)</label><input type="file" accept="image/*" class="text-sm q-img-file" onchange="previewImage(this, 'preview-q-${idx}')"><input type="hidden" class="q-img-base64-hidden" value=""><img id="preview-q-${idx}" class="mt-2 h-20 object-contain hidden border"></div>` : `<input type="hidden" class="q-img-base64-hidden" value="">`;
+            const imgInputHtml = isManual ? `<div><label class="block text-xs font-bold mb-1">Ảnh Câu hỏi (Tùy chọn)</label><input type="file" accept="image/*" class="text-sm q-img-file" onchange="previewImage(this, 'preview-q-${idx}')"><input type="hidden" class="q-img-base64-hidden" value=""><img id="preview-q-${idx}" class="mt-2 h-20 object-contain hidden border"></div>` : `<input type="hidden" class="q-img-base64-hidden" value="">`;
             const contentInputHtml = isManual ? `<div><label class="block text-xs font-bold mb-1">Hoặc Văn bản</label>${contentHtml}</div>` : contentHtml;
             
             return `
@@ -359,7 +346,18 @@
                     <input type="hidden" class="q-type" value="${type}">
                     ${isManual ? `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">${imgInputHtml} ${contentInputHtml}</div>` : contentInputHtml}
                     
-                    <textarea class="input-field text-sm text-gray-500 mt-2 h-16 q-explanation" placeholder="Giải thích">${qData.explanation || ''}</textarea>
+                    <div class="mt-2 border-t pt-2 bg-gray-50 p-2 rounded">
+                        <label class="block text-xs font-bold mb-1 text-gray-600">Giải thích / Lời giải chi tiết:</label>
+                        <textarea class="input-field text-sm text-gray-600 mt-1 h-16 q-explanation" placeholder="Giải thích đáp án...">${qData.explanation || ''}</textarea>
+                        
+                        <div class="mt-2 flex items-center gap-2">
+                            <label class="text-xs font-bold text-indigo-600 cursor-pointer">📷 Thêm ảnh lời giải:</label>
+                            <input type="file" accept="image/*" class="text-xs q-expl-img-file" onchange="previewImage(this, 'preview-expl-${idx}')">
+                            <input type="hidden" class="q-expl-img-base64-hidden" value="">
+                        </div>
+                        <img id="preview-expl-${idx}" class="mt-2 h-24 object-contain hidden border bg-white rounded">
+                    </div>
+
                 </div>
                 <div class="bg-gray-50 p-3 rounded border">${ansHtml}</div>
             `;
@@ -518,13 +516,20 @@
                     const div = qDivs[i];
                     const type = div.querySelector('.q-type')?.value || 'mcq';
                     
+                    // 1. Xử lý ảnh câu hỏi
                     let imgData = div.querySelector('.q-img-base64-hidden')?.value || '';
                     const imgFile = div.querySelector('.q-img-file');
                     if(!imgData && imgFile?.files[0]) imgData = await fileToBase64(imgFile.files[0]);
+
+                    // 2. Xử lý ảnh lời giải (MỚI)
+                    let explImgData = div.querySelector('.q-expl-img-base64-hidden')?.value || '';
+                    const explImgFile = div.querySelector('.q-expl-img-file');
+                    if(!explImgData && explImgFile?.files[0]) explImgData = await fileToBase64(explImgFile.files[0]);
                     
                     let ansData = { 
                         type, 
                         img_data: imgData, 
+                        explanation_img_data: explImgData, // Lưu ảnh lời giải
                         text_content: div.querySelector('.q-content-text')?.value || '', 
                         explanation: div.querySelector('.q-explanation')?.value || '' 
                     };
@@ -1022,7 +1027,10 @@
                              
                              <details class="mt-3">
                                  <summary class="cursor-pointer font-bold text-blue-600">Lời giải chi tiết</summary>
-                                 <div class="mt-2 p-2 border-t pt-2">${q.explanation ? marked.parse(q.explanation) : 'Không có lời giải chi tiết.'}</div>
+                                 <div class="mt-2 p-2 border-t pt-2">
+                                     ${q.explanation_img_data ? `<img src="data:image/png;base64,${q.explanation_img_data}" class="max-h-48 mb-3 border rounded shadow-sm">` : ''}
+                                     ${q.explanation ? marked.parse(q.explanation) : (q.explanation_img_data ? '' : 'Không có lời giải chi tiết.')}
+                                 </div>
                              </details>
                          </div>
                      </div>
