@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Fix Submit Violation)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Fix JSON Robust)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -192,7 +192,7 @@
         let examTimer = null;
         let detectedModelName = null;
         let violationCount = 0;
-        let isSubmitting = false; // NEW FLAG: Đánh dấu đang nộp bài để tắt chống gian lận
+        let isSubmitting = false; 
 
         signInAnonymously(auth);
         onAuthStateChanged(auth, (user) => {
@@ -236,6 +236,34 @@
                 document.getElementById('model-status').classList.remove('hidden');
                 return detectedModelName;
             } catch (e) { return "gemini-pro"; }
+        }
+
+        // --- NEW: ROBUST JSON PARSER ---
+        // Hàm này chuyên trị lỗi "Bad escaped character" do LaTeX sinh ra
+        function cleanAndParseJSON(text) {
+            let clean = text.replace(/```json/g, '').replace(/```/g, '').trim();
+            try {
+                return JSON.parse(clean); // Thử parse chuẩn trước
+            } catch (e1) {
+                console.warn("Lỗi parse JSON lần 1 (LaTeX chưa escape), đang sửa...", e1.message);
+                
+                // CẤP ĐỘ 2: Fix lỗi phổ biến nhất - Backslash đứng trước ký tự lạ
+                // Regex tìm các dấu \ KHÔNG phải là escape chuẩn của JSON ( " \ / b f n r t u )
+                // và nhân đôi chúng lên thành \\
+                clean = clean.replace(/\\(?!["\\/bfnrtu])/g, "\\\\");
+
+                try {
+                    return JSON.parse(clean);
+                } catch (e2) {
+                     console.warn("Lỗi parse JSON lần 2, thử cấp độ mạnh nhất...", e2.message);
+                    // CẤP ĐỘ 3: Nuclear Option
+                    // Nếu vẫn lỗi, khả năng là \f (form feed) trong \frac hoặc \t (tab) trong \theta
+                    // bị hiểu nhầm là ký tự điều khiển thật.
+                    // Ta sẽ escape toàn bộ backslash đứng trước chữ cái để biến chúng thành string thường.
+                    clean = clean.replace(/\\([a-zA-Z]+)/g, "\\\\$1");
+                    return JSON.parse(clean);
+                }
+            }
         }
 
         function generateQuestionEditorHTML(qData, idx) {
@@ -305,10 +333,9 @@
                 const data = await res.json();
                 if (data.error) throw new Error(data.error.message);
                 
-                let rawText = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
-                rawText = rawText.replace(/\\([^\/\\bfnrtu"])/g, "\\\\$1"); // Clean JSON
+                let rawText = data.candidates[0].content.parts[0].text;
+                const questions = cleanAndParseJSON(rawText); // SỬ DỤNG HÀM PARSE MỚI
 
-                const questions = JSON.parse(rawText);
                 questions.forEach((q) => {
                     const container = document.getElementById('questions-list');
                     const idx = container.children.length;
@@ -320,7 +347,7 @@
                     renderLaTeX(div);
                 });
                 customAlert(`Đã tạo ${questions.length} câu hỏi!`);
-            } catch (e) { console.error(e); customAlert(`Lỗi (Khả năng do AI sinh JSON sai định dạng LaTeX): ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
+            } catch (e) { console.error(e); customAlert(`Lỗi (Do AI sinh JSON sai định dạng LaTeX): ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
         };
 
         window.editQuestionWithAI = async (btn, idx) => {
@@ -345,10 +372,9 @@
                 const data = await res.json();
                 if(data.error) throw new Error(data.error.message);
                 
-                let rawText = data.candidates[0].content.parts[0].text.replace(/```json/g, '').replace(/```/g, '').trim();
-                rawText = rawText.replace(/\\([^\/\\bfnrtu"])/g, "\\\\$1");
+                let rawText = data.candidates[0].content.parts[0].text;
+                let newQuestionData = cleanAndParseJSON(rawText); // SỬ DỤNG HÀM PARSE MỚI
 
-                let newQuestionData = JSON.parse(rawText);
                 if(Array.isArray(newQuestionData)) newQuestionData = newQuestionData[0]; 
 
                 newQuestionData.type = newQuestionData.type === type ? newQuestionData.type : type;
@@ -488,7 +514,7 @@
         window.setupAntiCheat = () => {
             violationCount = 0;
             const warn = (msg) => {
-                if(isSubmitting) return; // FIXED: Không ghi nhận lỗi nếu đang nộp bài
+                if(isSubmitting) return; // Không ghi nhận lỗi nếu đang nộp bài
                 violationCount++;
                 document.getElementById('violation-display').innerHTML = `Vi phạm: <b class="text-red-600">${violationCount}/3</b>`;
                 if(violationCount<3) alert(`⚠️ CẢNH BÁO GIAN LẬN (${violationCount}/3): ${msg}`);
@@ -496,7 +522,7 @@
             };
             document.addEventListener("visibilitychange", () => { if(isSubmitting) return; if(document.hidden) warn("Rời màn hình"); });
             document.addEventListener("fullscreenchange", () => { 
-                if(isSubmitting) return; // FIXED: Không ghi nhận lỗi nếu đang nộp bài
+                if(isSubmitting) return; // Không ghi nhận lỗi nếu đang nộp bài
                 if(!document.fullscreenElement && !document.getElementById('taking-exam').classList.contains('hidden')) warn("Thoát toàn màn hình"); 
             });
             document.addEventListener("contextmenu", e => e.preventDefault()); document.addEventListener("copy", e => e.preventDefault());
