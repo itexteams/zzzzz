@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Shuffle & Security)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Fixed Labels)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -788,7 +788,7 @@
              }
          };
 
-        // --- STUDENT VIEW LOGIC (Updated for Shuffle) ---
+        // --- STUDENT VIEW LOGIC (Updated for Shuffle with Fixed Labels) ---
         window.checkExam = async () => {
             const id = document.getElementById('s-exam-id').value.toUpperCase();
             if(!id) return;
@@ -864,21 +864,27 @@
                     let input = '';
                     
                     if(q.type === 'mcq') {
-                        // 3. TRÁO ĐỔI ĐÁP ÁN (SHUFFLE OPTIONS)
-                        // Lấy các keys A, B, C, D có dữ liệu và tráo đổi chúng
-                        let optionKeys = ['A','B','C','D'];
-                        optionKeys = shuffleArray(optionKeys);
+                        // 3. TRÁO ĐỔI ĐÁP ÁN NHƯNG GIỮ NHÃN CỐ ĐỊNH (SHUFFLE OPTIONS, FIX LABELS)
+                        
+                        // Lọc các key hợp lệ (có nội dung)
+                        let validKeys = ['A','B','C','D'].filter(k => q.options && q.options[k]);
+                        // Tráo đổi các key nội dung (ví dụ: ['C', 'A', 'D', 'B'])
+                        let shuffledKeys = shuffleArray(validKeys);
+                        // Danh sách nhãn hiển thị cố định
+                        const fixedLabels = ['A', 'B', 'C', 'D'];
 
                         input = `<div class="flex flex-col gap-2">
-                            ${optionKeys.map(key => {
-                                // Kiểm tra nếu option đó có tồn tại nội dung thì mới render
-                                const text = (q.options && q.options[key]) ? q.options[key] : ``;
-                                if(!text && !q.options) return ''; // Bỏ qua nếu rỗng (trừ khi không có options object)
-                                const displayKey = key; // Vẫn hiển thị là A, B... tương ứng với nội dung
+                            ${shuffledKeys.map((originalKey, idx) => {
+                                // originalKey là key chứa nội dung (ví dụ: 'C')
+                                // text là nội dung của 'C'
+                                const text = q.options[originalKey];
+                                // displayLabel là nhãn hiển thị dựa trên vị trí (ví dụ vị trí 0 là 'A')
+                                const displayLabel = fixedLabels[idx];
 
-                                return `<div id="opt-row-${originalIndex}-${key}" onclick="selectOpt(${originalIndex},'${key}')" class="mcq-option">
-                                    <span class="mcq-label">${key}.</span>
-                                    <span>${text || `Đáp án ${key}`}</span>
+                                // ID và onclick vẫn dùng originalKey để logic chấm điểm hoạt động đúng (vì đáp án đúng được lưu là 'C')
+                                return `<div id="opt-row-${originalIndex}-${originalKey}" onclick="selectOpt(${originalIndex},'${originalKey}')" class="mcq-option">
+                                    <span class="mcq-label">${displayLabel}.</span>
+                                    <span>${text}</span>
                                 </div>`;
                             }).join('')}
                         </div><input type="hidden" id="ans-${originalIndex}">`;
