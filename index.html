@@ -248,21 +248,34 @@
         });
 
         // --- MATHJAX/KATEX RENDERER (Configured) ---
+        // --- MATHJAX/KATEX RENDERER (Configured + Auto replace \frac -> \dfrac) ---
         function renderLaTeX(element = document.body) {
-            if (window.renderMathInElement) {
-                renderMathInElement(element, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true}, 
-                        {left: '\\[', right: '\\]', display: true}, 
-                        {left: '$', right: '$', display: false},    
-                        {left: '\\(', right: '\\)', display: false} 
-                    ],
-                    throwOnError: false
-                });
-            } else {
+            if (!window.renderMathInElement) {
                 console.warn("KaTeX auto-render not loaded. Math rendering disabled.");
+                return;
             }
+        
+            // --- STEP 1: Replace \frac -> \dfrac BEFORE rendering ---
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+            let node;
+            while (node = walker.nextNode()) {
+                if (node.nodeValue.includes("\\frac")) {
+                    node.nodeValue = node.nodeValue.replace(/\\frac/g, "\\dfrac");
+                }
+            }
+        
+            // --- STEP 2: Render KaTeX ---
+            renderMathInElement(element, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false }
+                ],
+                throwOnError: false
+            });
         }
+
         document.addEventListener('DOMContentLoaded', () => { renderLaTeX(document.body); });
         
         // --- HELPERS ---
