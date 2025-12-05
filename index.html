@@ -248,21 +248,56 @@
         });
 
         // --- MATHJAX/KATEX RENDERER (Configured) ---
+        // --- MATHJAX/KATEX RENDERER (Configured + Auto \dfrac + Auto \displaystyle) ---
         function renderLaTeX(element = document.body) {
-            if (window.renderMathInElement) {
-                renderMathInElement(element, {
-                    delimiters: [
-                        {left: '$$', right: '$$', display: true}, 
-                        {left: '\\[', right: '\\]', display: true}, 
-                        {left: '$', right: '$', display: false},    
-                        {left: '\\(', right: '\\)', display: false} 
-                    ],
-                    throwOnError: false
-                });
-            } else {
+            if (!window.renderMathInElement) {
                 console.warn("KaTeX auto-render not loaded. Math rendering disabled.");
+                return;
             }
+        
+            // --- STEP 1: TEXT PREPROCESSING BEFORE RENDER ---
+            const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT, null);
+            let node;
+        
+            while (node = walker.nextNode()) {
+                let text = node.nodeValue;
+        
+                // Replace \frac -> \dfrac
+                if (text.includes("\\frac")) {
+                    text = text.replace(/\\frac/g, "\\dfrac");
+                }
+        
+                // Add \displaystyle to inline math ($...$)
+                text = text.replace(/\$(.+?)\$/g, (m, inner) => {
+                    if (!inner.trim().startsWith("\\displaystyle")) {
+                        return `$\\displaystyle ${inner}$`;
+                    }
+                    return m;
+                });
+        
+                // Add \displaystyle to inline math \(...\)
+                text = text.replace(/\\\((.+?)\\\)/g, (m, inner) => {
+                    if (!inner.trim().startsWith("\\displaystyle")) {
+                        return `\\(\\displaystyle ${inner}\\)`;
+                    }
+                    return m;
+                });
+        
+                node.nodeValue = text;
+            }
+        
+            // --- STEP 2: KaTeX RENDER ---
+            renderMathInElement(element, {
+                delimiters: [
+                    { left: '$$', right: '$$', display: true },
+                    { left: '\\[', right: '\\]', display: true },
+                    { left: '$', right: '$', display: false },
+                    { left: '\\(', right: '\\)', display: false }
+                ],
+                throwOnError: false
+            });
         }
+
         document.addEventListener('DOMContentLoaded', () => { renderLaTeX(document.body); });
         
         // --- HELPERS ---
