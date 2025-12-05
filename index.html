@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Hệ Thống Kiểm Tra Online (Advanced Analytics)</title>
+    <title>iTeX - Hệ Thống Kiểm Tra Online (Shuffle & Security)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -159,12 +159,12 @@
                         </div>
 
                         <div class="card p-6 border border-gray-200">
-                             <h3 class="text-lg font-bold text-gray-800 mb-4">2. Tỉ lệ thí sinh làm đúng theo Câu Hỏi</h3>
+                             <h3 class="text-lg font-bold text-gray-800 mb-4">2. Tỉ lệ thí sinh làm đúng theo Câu Hỏi (Gốc)</h3>
                              <div style="height: 300px;"><canvas id="questionCorrectnessChart"></canvas></div>
                         </div>
 
                          <div class="card p-6 border border-gray-200">
-                            <h3 class="text-lg font-bold text-gray-800 mb-4">3. Thống kê chi tiết điểm từng câu</h3>
+                            <h3 class="text-lg font-bold text-gray-800 mb-4">3. Thống kê chi tiết điểm từng câu (Theo Đề Gốc)</h3>
                             <div id="detailed-score-table" class="overflow-x-auto"></div>
                         </div>
 
@@ -188,7 +188,7 @@
                         <input type="text" id="s-name" class="input-field" placeholder="Họ và tên">
                         <input type="text" id="s-school" class="input-field" placeholder="Trường">
                         <input type="text" id="s-class" class="input-field" placeholder="Lớp">
-                        <p class="text-xs text-red-500 italic font-bold">* Lưu ý: Hệ thống sẽ tự động bật chế độ TOÀN MÀN HÌNH. Nếu thoát ra sẽ bị tính là vi phạm.</p>
+                        <p class="text-xs text-red-500 italic font-bold">* Lưu ý: Hệ thống sẽ ĐẢO CÂU HỎI và bật chế độ TOÀN MÀN HÌNH.</p>
                         <button onclick="startExam(event)" class="btn w-full py-3 font-bold bg-green-600 hover:bg-green-700">🚀 BẮT ĐẦU LÀM BÀI</button>
                     </div>
                 </div>
@@ -208,7 +208,7 @@
                         <p id="final-score" class="text-6xl font-extrabold text-gray-800 mt-2">0.00</p>
                     </div>
                     
-                    <h3 id="report-title" class="text-xl font-bold mt-6 mb-4 text-gray-700 border-t pt-4">📜 Kết Quả Chi Tiết Từng Câu</h3>
+                    <h3 id="report-title" class="text-xl font-bold mt-6 mb-4 text-gray-700 border-t pt-4">📜 Kết Quả Chi Tiết (Theo Đề Gốc)</h3>
                     <div id="report-details-container" class="text-left space-y-4">
                         </div>
 
@@ -266,6 +266,14 @@
         document.addEventListener('DOMContentLoaded', () => { renderLaTeX(document.body); });
         
         // --- HELPERS ---
+        // Hàm tráo đổi mảng (Fisher-Yates Shuffle)
+        function shuffleArray(array) {
+            for (let i = array.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [array[i], array[j]] = [array[j], array[i]];
+            }
+            return array;
+        }
 
         window.customAlert = (msg, title="Thông Báo", cb) => {
             document.getElementById('modal-title').innerText = title;
@@ -780,7 +788,7 @@
              }
          };
 
-        // --- STUDENT VIEW LOGIC (Unchanged for this request) ---
+        // --- STUDENT VIEW LOGIC (Updated for Shuffle) ---
         window.checkExam = async () => {
             const id = document.getElementById('s-exam-id').value.toUpperCase();
             if(!id) return;
@@ -833,7 +841,6 @@
                 }
             } catch (err) {
                 console.warn("Fullscreen request failed:", err);
-                // Có thể bỏ qua lỗi này nếu trình duyệt chặn, nhưng vẫn tiếp tục bài thi
             }
 
             e.target.innerText = "Đang tải đề...";
@@ -846,28 +853,45 @@
                 document.getElementById('display-s-name').innerText = name;
                 setupAntiCheat();
 
-                currentExamData.questions.forEach((q, i) => {
+                // 1. TẠO DANH SÁCH CHỈ SỐ VÀ TRÁO ĐỔI (SHUFFLE QUESTIONS)
+                let originalIndices = Array.from({length: currentExamData.questions.length}, (_, i) => i);
+                originalIndices = shuffleArray(originalIndices);
+
+                // 2. RENDER THEO DANH SÁCH ĐÃ TRÁO
+                originalIndices.forEach((originalIndex, displayIndex) => {
+                    const q = currentExamData.questions[originalIndex];
                     let content = q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-64 mx-auto mb-4 border">` : `<div class="p-4 bg-blue-50 border-l-4 border-blue-500 mb-4">${marked.parse(q.text_content)}</div>`;
                     let input = '';
                     
                     if(q.type === 'mcq') {
-                        const keys = ['A','B','C','D'];
+                        // 3. TRÁO ĐỔI ĐÁP ÁN (SHUFFLE OPTIONS)
+                        // Lấy các keys A, B, C, D có dữ liệu và tráo đổi chúng
+                        let optionKeys = ['A','B','C','D'];
+                        optionKeys = shuffleArray(optionKeys);
+
                         input = `<div class="flex flex-col gap-2">
-                            ${keys.map(key => {
-                                const text = (q.options && q.options[key]) ? q.options[key] : `Đáp án ${key}`;
-                                return `<div id="opt-row-${i}-${key}" onclick="selectOpt(${i},'${key}')" class="mcq-option">
+                            ${optionKeys.map(key => {
+                                // Kiểm tra nếu option đó có tồn tại nội dung thì mới render
+                                const text = (q.options && q.options[key]) ? q.options[key] : ``;
+                                if(!text && !q.options) return ''; // Bỏ qua nếu rỗng (trừ khi không có options object)
+                                const displayKey = key; // Vẫn hiển thị là A, B... tương ứng với nội dung
+
+                                return `<div id="opt-row-${originalIndex}-${key}" onclick="selectOpt(${originalIndex},'${key}')" class="mcq-option">
                                     <span class="mcq-label">${key}.</span>
-                                    <span>${text}</span>
+                                    <span>${text || `Đáp án ${key}`}</span>
                                 </div>`;
                             }).join('')}
-                        </div><input type="hidden" id="ans-${i}">`;
-                    } else if (q.type === 'short_answer') input = `<input type="text" id="ans-${i}" class="input-field mt-2 border-2" placeholder="Trả lời...">`;
+                        </div><input type="hidden" id="ans-${originalIndex}">`;
+                    } else if (q.type === 'short_answer') {
+                        input = `<input type="text" id="ans-${originalIndex}" class="input-field mt-2 border-2" placeholder="Trả lời...">`;
+                    }
                     else if (q.type === 'true_false') {
-                         input = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">${(q.tf_options||['a','b','c','d']).map((t,j)=>`<div class="border p-2 flex justify-between bg-white items-center text-sm"><span>${t}</span><label class="flex items-center gap-2"><input type="checkbox" id="tf-${i}-${j}" class="w-5 h-5 accent-green-600"> Đúng</label></div>`).join('')}</div>`;
+                         input = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">${(q.tf_options||['a','b','c','d']).map((t,j)=>`<div class="border p-2 flex justify-between bg-white items-center text-sm"><span>${t}</span><label class="flex items-center gap-2"><input type="checkbox" id="tf-${originalIndex}-${j}" class="w-5 h-5 accent-green-600"> Đúng</label></div>`).join('')}</div>`;
                     }
 
                     const div = document.createElement('div'); div.className = "card mb-8 border-t-4 border-indigo-500";
-                    div.innerHTML = `<div class="flex justify-between mb-3"><h4 class="font-bold bg-gray-200 px-3 py-1 rounded-full">Câu ${i+1}</h4><span class="text-xs font-bold text-gray-400 uppercase">${q.type}</span></div>${content}${input}`;
+                    // Hiển thị số câu theo thứ tự nhìn thấy (displayIndex + 1), nhưng logic dùng originalIndex
+                    div.innerHTML = `<div class="flex justify-between mb-3"><h4 class="font-bold bg-gray-200 px-3 py-1 rounded-full">Câu ${displayIndex+1}</h4><span class="text-xs font-bold text-gray-400 uppercase">${q.type}</span></div>${content}${input}`;
                     container.appendChild(div);
                 });
                 
@@ -882,10 +906,11 @@
                     if(time <= 0) { clearInterval(examTimer); alert("HẾT GIỜ!"); submitExam(); }
                     time--;
                 }, 1000);
-            } catch(e) { customAlert("Lỗi tải đề: " + e.message); e.target.innerText = "BẮT ĐẦU"; }
+            } catch(e) { console.error(e); customAlert("Lỗi tải đề: " + e.message); e.target.innerText = "BẮT ĐẦU"; }
         }
 
         window.selectOpt = (i, o) => {
+            // i là originalIndex, o là key (A, B...)
             ['A','B','C','D'].forEach(k => { const el = document.getElementById(`opt-row-${i}-${k}`); if(el) el.classList.remove('selected'); });
             const clicked = document.getElementById(`opt-row-${i}-${o}`); if(clicked) clicked.classList.add('selected');
             document.getElementById(`ans-${i}`).value = o;
@@ -908,7 +933,7 @@
              let detailedReportHtml = '';
              let studentAnswersData = []; // Mảng lưu trữ câu trả lời chi tiết của học sinh
              
-             // 1. Tính điểm và tạo báo cáo chi tiết
+             // Duyệt theo thứ tự GỐC của câu hỏi để tính điểm và báo cáo
              currentExamData.questions.forEach((q, i) => {
                  let studentAnswerDisplay = 'Chưa trả lời';
                  let correctAnswerDisplay = '';
@@ -917,6 +942,7 @@
                  let currentQAnswers = {};
                  
                  if (q.type === 'mcq') {
+                     // Lấy giá trị từ input ẩn (id theo originalIndex i)
                      const studentChoice = document.getElementById(`ans-${i}`)?.value;
                      currentQAnswers.mcq = studentChoice;
                      
@@ -967,7 +993,7 @@
 
                  detailedReportHtml += `
                      <div class="p-4 border-l-4 rounded ${statusClass}">
-                         <h5 class="font-bold mb-2 text-lg text-gray-800">Câu ${i + 1}: <span class="text-sm font-semibold">${statusText} (${isCorrect ? (sc.mcq||sc.sa||sc.tf_4).toFixed(2) : '0.00'} điểm)</span></h5>
+                         <h5 class="font-bold mb-2 text-lg text-gray-800">Câu ${i + 1} (Gốc): <span class="text-sm font-semibold">${statusText} (${isCorrect ? (sc.mcq||sc.sa||sc.tf_4).toFixed(2) : '0.00'} điểm)</span></h5>
                          
                          <div class="bg-white p-3 rounded shadow-sm text-sm">
                              ${q.img_data ? `<img src="data:image/png;base64,${q.img_data}" class="max-h-32 object-contain mb-2">` : `<div class="font-medium">${marked.parse(q.text_content)}</div>`}
@@ -1009,7 +1035,7 @@
 
              if (allow_solution && allow_score) { 
                  document.getElementById('report-details-container').innerHTML = detailedReportHtml;
-                 document.getElementById('report-title').innerText = '📜 Kết Quả Chi Tiết Từng Câu 📜';
+                 document.getElementById('report-title').innerText = '📜 Kết Quả Chi Tiết Từng Câu (Thứ tự gốc) 📜';
                  renderLaTeX(document.getElementById('report-details-container')); 
              } else if (allow_score && !allow_solution) {
                  document.getElementById('report-details-container').innerHTML = '<p class="text-center italic text-gray-500 p-4 border rounded">Tính năng xem lời giải chi tiết đã bị **khóa**.</p>';
