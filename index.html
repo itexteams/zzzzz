@@ -351,7 +351,7 @@
 
             btn.disabled = true; btn.innerHTML = "🔍 Đang tạo đề...";
             try {
-                const modelName = "gemini-1.5-flash";
+                const modelName = "gemini-1.5-flash-latest";
                 const fileInput = document.getElementById('ai-upload-file');
                 const topicText = document.getElementById('ai-topic-text').value.trim();
                 let parts = [];
@@ -416,7 +416,7 @@
             btn.innerHTML = "⏳ AI đang sửa...";
             try {
                 const currentContent = card.querySelector('.q-content-text').value;
-                const modelName = "gemini-1.5-flash";
+                const modelName = "gemini-1.5-flash-latest";
                 
                 let editRules = [];
                 if(isEnglish) editRules.push("Dùng Tiếng Anh.");
