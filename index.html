@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>iTeX - Exam System (Auto Key)</title>
+    <title>iTeX - Exam System (Dynamic Model Loader)</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdn.sheetjs.com/xlsx-0.20.1/package/dist/xlsx.full.min.js"></script>
@@ -33,6 +33,7 @@
         .katex { font-size: 1.1em; }
         .score-circle { display: inline-flex; align-items: center; justify-content: center; width: 30px; height: 30px; border-radius: 50%; font-size: 10px; font-weight: bold; color: white; flex-shrink: 0; margin: 2px; }
         
+        /* Custom Audio Player Style */
         audio { width: 100%; height: 40px; margin-top: 5px; }
     </style>
 </head>
@@ -80,10 +81,12 @@
                     </div>
                     
                     <div class="bg-indigo-50 p-6 rounded-xl border border-indigo-200 mb-8">
-                        <h3 class="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">🤖 AI Generator (Auto-Key Integration)</h3>
-                        
-                        <div id="model-status" class="text-xs font-mono text-green-700 mt-1 mb-2 hidden"></div>
-
+                        <h3 class="text-lg font-bold text-indigo-800 mb-4 flex items-center gap-2">🤖 AI Generator (Auto Fix)</h3>
+                        <div class="mb-4">
+                            <label class="block text-sm font-semibold text-gray-700 mb-1">Gemini API Key</label>
+                            <input type="password" id="ai-api-key" class="input-field" placeholder="Dán API Key..." onkeydown="if(event.key === 'Enter') generateWithAI(document.querySelector('#ai-generate-btn'))">
+                            <div id="model-status" class="text-xs font-mono text-green-700 mt-1 hidden"></div>
+                        </div>
                         <div class="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div><label class="block text-sm text-gray-600">Trắc nghiệm</label><input type="number" id="ai-num-mcq" class="input-field" value="5" min="0"></div>
                             <div><label class="block text-sm text-gray-600">Đúng/Sai</label><input type="number" id="ai-num-tf" class="input-field" value="0" min="0"></div>
@@ -179,13 +182,6 @@
         import { getAuth, signInAnonymously, onAuthStateChanged } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-auth.js";
         import { getFirestore, doc, setDoc, getDoc, updateDoc, arrayUnion } from "https://www.gstatic.com/firebasejs/11.6.1/firebase-firestore.js";
 
-        // ==========================================
-        //  CẤU HÌNH API KEY HỆ THỐNG
-        //  Thay dòng dưới bằng Key của bạn
-        // ==========================================
-        const SYSTEM_API_KEY = "AIzaSyDe5M3ilRAeZeI4AheH4E-YKs8pYcMh6-c";
-        // Ví dụ: const SYSTEM_API_KEY = "AIzaSy...";
-
         const firebaseConfig = { apiKey: "AIzaSyCY_WIQ_nAy4Guxg6OMRtNW-F6qhb2U4BI", authDomain: "flutter-ai-playground-fd478.firebaseapp.com", projectId: "flutter-ai-playground-fd478", storageBucket: "flutter-ai-playground-fd478.firebasestorage.app", messagingSenderId: "321777356764", appId: "1:321777356764:web:7ea129a40de01a4cc5c919" };
         const APP_ID = 'itex-v10-analytics';
 
@@ -239,32 +235,47 @@
         window.checkAdminKey = () => { if(document.getElementById('admin-key-input').value === 'admin') { document.getElementById('password-modal').classList.add('hidden'); document.getElementById('role-selection').classList.add('hidden'); document.getElementById('teacher-view').classList.remove('hidden'); } else customAlert("Sai mã khóa! (Gợi ý: admin)"); };
         window.fileToBase64 = (file) => new Promise((resolve) => { const reader = new FileReader(); reader.onload = () => resolve(reader.result.split(',')[1]); reader.readAsDataURL(file); });
 
+        // ==========================================
+        //  DYNAMIC MODEL FINDER (CRITICAL FIX)
+        // ==========================================
         async function getDynamicModel(apiKey) {
             try {
+                // 1. Lấy danh sách model hợp lệ
                 const listUrl = `https://generativelanguage.googleapis.com/v1beta/models?key=${apiKey}`;
                 const response = await fetch(listUrl);
                 if (!response.ok) throw new Error("API Key lỗi hoặc không thể lấy danh sách model.");
                 const data = await response.json();
                 
+                // 2. Lọc các model hỗ trợ generateContent
                 const validModels = (data.models || []).filter(m => 
                     m.supportedGenerationMethods && m.supportedGenerationMethods.includes("generateContent")
                 );
 
                 if (validModels.length === 0) throw new Error("Không tìm thấy model nào khả dụng.");
 
+                // 3. Ưu tiên tìm Flash (Vì nó rẻ/miễn phí)
+                // Tìm model có tên chứa 'flash' (VD: models/gemini-1.5-flash-001)
                 let selected = validModels.find(m => m.name.toLowerCase().includes("flash"));
+
+                // 4. Nếu không có Flash, tìm Pro (VD: models/gemini-1.5-pro)
                 if (!selected) selected = validModels.find(m => m.name.toLowerCase().includes("pro") && m.name.includes("1.5"));
+                
+                // 5. Nếu vẫn không có, tìm bất kỳ model nào có chữ gemini
                 if (!selected) selected = validModels.find(m => m.name.toLowerCase().includes("gemini"));
+                
+                // 6. Cùng đường: lấy cái đầu tiên
                 if (!selected) selected = validModels[0];
 
-                const finalName = selected.name;
+                const finalName = selected.name; // VD: "models/gemini-1.5-flash-001"
                 
                 document.getElementById('model-status').innerText = `✅ Đã chọn: ${finalName.replace('models/', '')}`;
                 document.getElementById('model-status').classList.remove('hidden');
-                return finalName;
+                
+                return finalName; // Trả về full tên (bao gồm models/)
 
             } catch (e) {
                 console.warn("Lỗi auto-detect, dùng fallback cứng:", e);
+                // Fallback cực đoan nếu API list chết
                 return "models/gemini-1.5-flash-latest";
             }
         }
@@ -302,6 +313,7 @@
             }
         }
 
+        // GENERATE EDITOR HTML
         function generateQuestionEditorHTML(qData, idx) {
             const type = qData.type;
             let ansHtml = '';
@@ -349,11 +361,10 @@
             `;
         }
         
-        // AI GENERATION (USING SYSTEM KEY)
+        // AI GENERATION (USING DYNAMIC FINDER)
         window.generateWithAI = async (btn) => {
-            // SỬ DỤNG KEY CỐ ĐỊNH
-            const apiKey = SYSTEM_API_KEY; 
-            if (!apiKey || apiKey.includes("DÁN_API_KEY")) return customAlert("Chưa cấu hình API Key trong Code!");
+            const apiKey = document.getElementById('ai-api-key').value.trim();
+            if (!apiKey) return customAlert("Vui lòng nhập API Key Gemini!");
             
             const numMcq = parseInt(document.getElementById('ai-num-mcq').value) || 0;
             const numTf = parseInt(document.getElementById('ai-num-tf').value) || 0;
@@ -366,6 +377,7 @@
 
             btn.disabled = true; btn.innerHTML = "🔍 Đang tạo đề...";
             try {
+                // 1. TÌM MODEL ĐÚNG CHUẨN
                 const modelName = await getDynamicModel(apiKey);
 
                 const fileInput = document.getElementById('ai-upload-file');
@@ -393,6 +405,8 @@
                 if (topicText) parts.push({text: `Chủ đề: ${topicText}`});
                 if (fileInput.files.length > 0) parts.push({ inline_data: { mime_type: fileInput.files[0].type || "application/pdf", data: await fileToBase64(fileInput.files[0]) } });
 
+                // 2. GỌI API VỚI TÊN MODEL ĐÃ TÌM ĐƯỢC
+                // Lưu ý: modelName lấy từ list API đã có sẵn 'models/' ở đầu, ví dụ 'models/gemini-1.5-flash-001'
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({ contents: [{ parts: parts }] })
                 });
@@ -417,12 +431,10 @@
             } catch (e) { console.error(e); customAlert(`Lỗi: ${e.message}`); } finally { btn.disabled = false; btn.innerHTML = "✨ Tạo Câu Hỏi Ngay"; }
         };
 
-        // AI EDITING (USING SYSTEM KEY)
+        // AI EDITING (USING DYNAMIC FINDER)
         window.editQuestionWithAI = async (btn, idx) => {
-            // SỬ DỤNG KEY CỐ ĐỊNH
-            const apiKey = SYSTEM_API_KEY;
-            if (!apiKey || apiKey.includes("DÁN_API_KEY")) return customAlert("Chưa cấu hình API Key!");
-
+            const apiKey = document.getElementById('ai-api-key').value.trim();
+            if (!apiKey) return customAlert("Cần API Key!");
             const card = btn.closest('.card');
             const type = card.querySelector('.q-type').value;
             const newInstruction = prompt("Yêu cầu sửa câu hỏi:");
@@ -435,6 +447,7 @@
             btn.innerHTML = "⏳ AI đang sửa...";
             try {
                 const currentContent = card.querySelector('.q-content-text').value;
+                // 1. Tìm model
                 const modelName = await getDynamicModel(apiKey); 
                 
                 let editRules = [];
@@ -446,6 +459,7 @@
                 Quy tắc: ${editRules.join(' ')} Dùng LaTeX bao quanh bởi $.
                 Loại câu: ${type}. Nội dung cũ: ${currentContent}. Chỉ trả về MỘT JSON Object duy nhất.`;
 
+                // 2. Gọi API
                 const res = await fetch(`https://generativelanguage.googleapis.com/v1beta/${modelName}:generateContent?key=${apiKey}`, {
                     method: 'POST', headers: {'Content-Type': 'application/json'},
                     body: JSON.stringify({ contents: [{ parts: [{text: promptText}] }] })
@@ -462,7 +476,7 @@
                 newQuestionData.type = newQuestionData.type === type ? newQuestionData.type : type;
                 newQuestionData.aiGenerated = true;
                 newQuestionData.img_data = card.querySelector('.q-img-base64-hidden').value;
-                newQuestionData.audio_data = card.querySelector('.q-audio-base64-hidden').value;
+                newQuestionData.audio_data = card.querySelector('.q-audio-base64-hidden').value; // Preserve Audio
                 newQuestionData.explanation_img_data = card.querySelector('.q-expl-img-base64-hidden').value;
 
                 card.innerHTML = generateQuestionEditorHTML(newQuestionData, idx); 
@@ -491,6 +505,7 @@
 
         window.previewImage = (input, id) => { if(input.files[0]) { const r = new FileReader(); r.onload = (e) => { const img = document.getElementById(id); img.src = e.target.result; img.classList.remove('hidden'); input.parentElement.querySelector('input[type="hidden"]').value = e.target.result.split(',')[1]; }; r.readAsDataURL(input.files[0]); } }
         
+        // SAVE EXAM WITH AUDIO
         window.saveExam = async (btn) => {
             btn.disabled = true; btn.innerText = "Lưu...";
             try {
@@ -507,6 +522,7 @@
                     let explImgData = div.querySelector('.q-expl-img-base64-hidden').value;
                     if(!explImgData && div.querySelector('.q-expl-img-file').files[0]) explImgData = await fileToBase64(div.querySelector('.q-expl-img-file').files[0]);
                     
+                    // Audio Data Save
                     let audioData = div.querySelector('.q-audio-base64-hidden').value;
                     if(!audioData && div.querySelector('.q-audio-file').files[0]) audioData = await fileToBase64(div.querySelector('.q-audio-file').files[0]);
 
@@ -586,4 +602,128 @@
                 document.getElementById('results-charts-analysis').classList.remove('hidden'); renderLaTeX(document.getElementById('results-charts-analysis'));
             } catch (e) { customAlert("Lỗi tải: " + e.message); document.getElementById('results-charts-analysis').classList.add('hidden'); } finally { btn.disabled = false; btn.innerText = "Xem"; }
         };
-        window.exportResultsToExcel = ()
+        window.exportResultsToExcel = () => { const t = document.getElementById('results-table-container').querySelector('table'); if(t) XLSX.writeFile(XLSX.utils.table_to_book(t, {sheet:'KQ'}), 'KetQua.xlsx'); else customAlert("Không có dữ liệu."); };
+
+        window.checkExam = async () => {
+            const id = document.getElementById('s-exam-id').value.toUpperCase();
+            if(!id) return;
+            const snap = await getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_exams', id));
+            if(!snap.exists()) return customAlert("Mã đề sai!");
+            currentExamData = snap.data(); currentExamData.id = id;
+            document.getElementById('student-entry').classList.add('hidden'); document.getElementById('student-info-form').classList.remove('hidden');
+            document.getElementById('exam-info-display').innerText = `${currentExamData.subject} - ${currentExamData.teacher}`;
+        }
+
+        window.setupAntiCheat = () => {
+            violationCount = 0;
+            const warn = (msg) => {
+                if(isSubmitting) return; // Không ghi nhận lỗi nếu đang nộp bài
+                violationCount++;
+                document.getElementById('violation-display').innerHTML = `Vi phạm: <b class="text-red-600">${violationCount}/3</b>`;
+                if(violationCount<3) alert(`⚠️ CẢNH BÁO GIAN LẬN (${violationCount}/3): ${msg}`);
+                else { alert("🚫 VI PHẠM QUÁ MỨC. NỘP BÀI!"); submitExam(true); }
+            };
+            document.addEventListener("visibilitychange", () => { if(isSubmitting) return; if(document.hidden) warn("Rời màn hình"); });
+            document.addEventListener("fullscreenchange", () => { 
+                if(isSubmitting) return; // Không ghi nhận lỗi nếu đang nộp bài
+                if(!document.fullscreenElement && !document.getElementById('taking-exam').classList.contains('hidden')) warn("Thoát toàn màn hình"); 
+            });
+            document.addEventListener("contextmenu", e => e.preventDefault()); document.addEventListener("copy", e => e.preventDefault());
+            document.onkeydown = e => { if(e.keyCode==123 || (e.ctrlKey && e.shiftKey && (e.keyCode==73 || e.keyCode==67))) return false; };
+        };
+
+        // RENDER EXAM FOR STUDENT (WITH AUDIO)
+        window.startExam = async (e) => {
+            const name = document.getElementById('s-name').value.trim(); if(!name) return customAlert("Nhập tên!");
+            isSubmitting = false; 
+            try { if(document.documentElement.requestFullscreen) await document.documentElement.requestFullscreen(); } catch(err){}
+            e.target.innerText = "Đang tải đề...";
+            try {
+                const qProms = []; for(let i=0; i<currentExamData.question_count; i++) qProms.push(getDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_questions', `${currentExamData.id}_${i}`)));
+                currentExamData.questions = (await Promise.all(qProms)).map(s => s.data());
+                
+                const container = document.getElementById('exam-questions-render'); container.innerHTML = '';
+                document.getElementById('display-s-name').innerText = name; setupAntiCheat();
+                
+                let indices = shuffleArray(Array.from({length: currentExamData.questions.length}, (_, i) => i));
+                indices.forEach((origIdx, dispIdx) => {
+                    const q = currentExamData.questions[origIdx];
+                    
+                    let content = '';
+                    if(q.img_data) content += `<img src="data:image/png;base64,${q.img_data}" class="max-h-64 mx-auto mb-4 border rounded">`;
+                    if(q.audio_data) content += `<div class="mb-4 bg-purple-50 p-2 rounded border border-purple-200"><p class="text-xs font-bold text-purple-700 mb-1">🔊 NGHE ĐOẠN ÂM THANH:</p><audio controls src="data:audio/mp3;base64,${q.audio_data}" class="w-full"></audio></div>`;
+                    if(q.text_content) content += `<div class="p-4 bg-blue-50 border-l-4 border-blue-500 mb-4">${marked.parse(q.text_content)}</div>`;
+
+                    let input = '';
+                    if(q.type === 'mcq') {
+                        let keys = shuffleArray(['A','B','C','D'].filter(k => q.options && q.options[k]));
+                        input = `<div class="flex flex-col gap-2">${keys.map((k,i) => `<div id="opt-row-${origIdx}-${k}" onclick="selectOpt(${origIdx},'${k}')" class="mcq-option"><span class="mcq-label">${['A','B','C','D'][i]}.</span><span>${q.options[k]}</span></div>`).join('')}</div><input type="hidden" id="ans-${origIdx}">`;
+                    } else if (q.type === 'short_answer') input = `<input type="text" id="ans-${origIdx}" class="input-field mt-2 border-2" placeholder="Trả lời...">`;
+                    else if (q.type === 'true_false') input = `<div class="grid grid-cols-1 md:grid-cols-2 gap-4 mt-2">${(q.tf_options||['a','b','c','d']).map((t,j)=>`<div class="border p-2 flex justify-between bg-white items-center text-sm"><span>${t}</span><label class="flex items-center gap-2"><input type="checkbox" id="tf-${origIdx}-${j}" class="w-5 h-5 accent-green-600"> Đúng</label></div>`).join('')}</div>`;
+                    
+                    const div = document.createElement('div'); div.className = "card mb-8 border-t-4 border-indigo-500";
+                    div.innerHTML = `<div class="flex justify-between mb-3"><h4 class="font-bold bg-gray-200 px-3 py-1 rounded-full">Câu ${dispIdx+1}</h4><span class="text-xs font-bold text-gray-400 uppercase">${q.type}</span></div>${content}${input}`;
+                    container.appendChild(div);
+                });
+                
+                document.getElementById('student-info-form').classList.add('hidden'); document.getElementById('taking-exam').classList.remove('hidden'); renderLaTeX(document.getElementById('taking-exam'));
+                let time = currentExamData.time * 60;
+                examTimer = setInterval(() => { document.getElementById('timer').innerText = `${Math.floor(time/60).toString().padStart(2,'0')}:${(time%60).toString().padStart(2,'0')}`; if(time <= 0) { clearInterval(examTimer); alert("HẾT GIỜ!"); submitExam(true); } time--; }, 1000);
+            } catch(e) { console.error(e); customAlert("Lỗi tải đề: " + e.message); }
+        }
+
+        window.selectOpt = (i, o) => { ['A','B','C','D'].forEach(k => document.getElementById(`opt-row-${i}-${k}`)?.classList.remove('selected')); document.getElementById(`opt-row-${i}-${o}`)?.classList.add('selected'); document.getElementById(`ans-${i}`).value = o; }
+
+        // SUBMIT EXAM
+        window.submitExam = async (force = false) => {
+             if (!force) { 
+                 const msg = `Bạn có chắc chắn muốn nộp bài?\n\n⚠️ Số lỗi vi phạm ghi nhận: ${violationCount}`; 
+                 if (!confirm(msg)) return; 
+             }
+             isSubmitting = true; 
+
+             clearInterval(examTimer); 
+             if (document.fullscreenElement) { try { await document.exitFullscreen(); } catch(e) {} }
+             
+             document.getElementById('btn-submit').disabled = true; document.getElementById('btn-submit').innerText = "Đang chấm...";
+             
+             let score = 0, detailedReportHtml = '', studentAnswersData = [];
+             const sc = currentExamData.scoring, { allow_score, allow_solution } = currentExamData;
+
+             currentExamData.questions.forEach((q, i) => {
+                 let sAnsDis = 'Chưa làm', cAnsDis = '', isCorrect = false, qAns = {};
+                 if (q.type === 'mcq') {
+                     const sChoice = document.getElementById(`ans-${i}`)?.value; qAns.mcq = sChoice;
+                     sAnsDis = sChoice || 'Chưa chọn'; cAnsDis = q.answer; isCorrect = (sChoice === q.answer);
+                     if(isCorrect) score += sc.mcq;
+                     if(sChoice) sAnsDis = `${sChoice} <span class="${isCorrect?'text-green-500':'text-red-500'}">(Của bạn)</span>`;
+                 } else if (q.type === 'short_answer') {
+                     const sText = document.getElementById(`ans-${i}`)?.value; qAns.sa = sText;
+                     sAnsDis = sText || 'Chưa nhập'; cAnsDis = q.answer; isCorrect = (sText?.trim().toLowerCase() === q.answer.toLowerCase());
+                     if(isCorrect) score += sc.sa;
+                 } else if (q.type === 'true_false') {
+                     let sChoices = [], cAns = q.answers || [], correctCount = 0, sTF = [];
+                     for (let j = 0; j < (q.tf_options?.length || 4); j++) {
+                         let sC = document.getElementById(`tf-${i}-${j}`)?.checked ? 'Đ' : 'S';
+                         sTF.push(sC); sChoices.push(`Ý ${j+1}: ${sC}`);
+                         if (sC === cAns[j]) correctCount++;
+                     }
+                     qAns.tf = sTF; sAnsDis = sChoices.join(' | '); cAnsDis = cAns.join(' | ');
+                     if(cAns.length>0 && correctCount>0) { if(correctCount==1) score+=sc.tf_1; else if(correctCount==2) score+=sc.tf_2; else if(correctCount==3) score+=sc.tf_3; else if(correctCount==4) score+=sc.tf_4; }
+                     isCorrect = (correctCount === cAns.length && correctCount > 0);
+                 }
+                 studentAnswersData.push({ answers: qAns });
+
+                 detailedReportHtml += `<div class="p-4 border-l-4 rounded ${isCorrect?'border-green-500 bg-green-50':'border-red-500 bg-red-50'}"><h5 class="font-bold mb-2">Câu ${i+1}: ${isCorrect?'ĐÚNG':'SAI'}</h5><div class="bg-white p-3 text-sm">${q.img_data?`<img src="data:image/png;base64,${q.img_data}" class="max-h-32 mb-2">`:''} ${q.audio_data?`<div class="mb-2"><audio controls src="data:audio/mp3;base64,${q.audio_data}" class="w-full h-8"></audio></div>`:''} ${q.text_content?marked.parse(q.text_content):''}<p class="mt-2"><strong>Bạn chọn:</strong> ${sAnsDis}</p><p class="mt-1 text-green-700"><strong>Đáp án:</strong> ${cAnsDis}</p><details class="mt-3"><summary class="cursor-pointer font-bold text-blue-600">Lời giải</summary><div class="mt-2 border-t pt-2">${q.explanation_img_data?`<img src="data:image/png;base64,${q.explanation_img_data}" class="max-h-48 mb-3">`:''}${q.explanation?marked.parse(q.explanation):'Không có.'}</div></details></div></div>`;
+             });
+
+             await updateDoc(doc(db, 'artifacts', APP_ID, 'public', 'data', 'itex_results', currentExamData.id), { results: arrayUnion({ name: document.getElementById('s-name').value, class: document.getElementById('s-class').value, school: document.getElementById('s-school').value, score: score, submittedAt: new Date().toISOString(), violation_count: violationCount, detailed_answers: studentAnswersData }) });
+
+             document.getElementById('taking-exam').classList.add('hidden'); document.getElementById('student-result').classList.remove('hidden');
+             if (allow_score) document.getElementById('final-score').innerText = score.toFixed(2); else document.getElementById('score-display-box').innerHTML = '<p class="text-xl font-bold text-red-500">Giáo viên đã khóa điểm.</p>';
+             document.getElementById('report-details-container').innerHTML = (allow_solution && allow_score) ? detailedReportHtml : '<p class="text-center italic text-gray-500 p-4 border rounded">Chi tiết bài làm đã bị khóa.</p>';
+             if (allow_solution && allow_score) renderLaTeX(document.getElementById('report-details-container'));
+        }
+    </script>
+</body>
+</html>
